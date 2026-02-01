@@ -1,0 +1,30 @@
+{
+  "name": "github-card",
+  "version": "1.0.0",
+  "author": {
+    "name": "saku shiina",
+    "email": "saksham.mac@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ShiinaSaku/Github-Card.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "typecheck": "tsc --noEmit --skipLibCheck"
+  },
+  "dependencies": {
+    "elysia": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "oxfmt": "^0.27.0",
+    "oxlint": "^1.42.0",
+    "typescript": "^5.9.3"
+  }
+}
