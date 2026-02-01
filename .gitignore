@@ -40,5 +40,4 @@ yarn-error.log*
 **/*.tar.gz
 **/*.tgz
 **/*.log
-/bun.lock
 **/*.bun
