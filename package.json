@@ -1,6 +1,8 @@
 {
   "name": "github-card",
   "version": "1.0.0",
+  "homepage": "https://card.shiina.xyz",
+  "license": "MIT",
   "author": {
     "name": "saku shiina",
     "email": "saksham.mac@icloud.com"
@@ -19,6 +21,7 @@
     "typecheck": "tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
+    "@upstash/redis": "^1.36.2",
     "elysia": "latest"
   },
   "devDependencies": {

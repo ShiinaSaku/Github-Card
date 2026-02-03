@@ -1,22 +1,5 @@
-import { resolveColors, kFormat, escapeXml, icon } from "@/utils";
-import type { UserProfile, UserStats, LanguageStat, CardOptions } from "@/types";
-import { readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-// Font loading logic
-let fontBase64 = "";
-try {
-  const _dirname =
-    typeof import.meta.dir !== "undefined"
-      ? import.meta.dir
-      : dirname(fileURLToPath(import.meta.url));
-  const fontPath = join(_dirname, "../fonts/GoogleSans-VariableFont_GRAD,opsz,wght.ttf");
-  // readFileSync works fine in Bun for startup config
-  fontBase64 = readFileSync(fontPath).toString("base64");
-} catch (e) {
-  // Silent fallback to system fonts
-}
+import { resolveColors, kFormat, escapeXml, icon, wrapText } from "@/utils";
+import type { UserProfile, UserStats, LanguageStat } from "@/types";
 
 export type CardOpts = {
   theme?: string;
@@ -39,18 +22,19 @@ export function renderCard(
 
   const name = escapeXml(user.name || user.login);
   const uname = escapeXml(user.login);
-  const bio = user.bio ? escapeXml(user.bio).slice(0, 48) : "";
+  const bioRaw = user.bio ? escapeXml(user.bio) : "";
+  const bioLines = bioRaw ? wrapText(bioRaw, 42, 2) : [];
   const pronouns = user.pronouns ? escapeXml(user.pronouns) : "";
   const avatar = user.avatarUrl.replace(/&/g, "&amp;");
   const twitter = user.twitter ? escapeXml(user.twitter) : "";
 
-  const W = 460;
-  const H = 195;
-  const P = 25;
-  const avatarSize = 70;
+  const W = 500;
+  const H = 200;
+  const P = 22;
+  const avatarSize = 72;
   const barWidth = W - P * 2;
-  const barY = H - 42;
-  const labelY = H - 18;
+  const barY = H - 40;
+  const labelY = H - 16;
   const infoX = P + avatarSize + 16;
 
   const totalSize = langs.reduce((sum, l) => sum + l.size, 0) || 1;
@@ -75,14 +59,15 @@ export function renderCard(
     .join("");
 
   const nameY = P + 22;
-  const usernameY = nameY + 17;
-  const bioY = usernameY + 15;
-  const twitterY = bio ? bioY + 13 : usernameY + 15;
+  const usernameY = nameY + 18;
+  const bioY = usernameY + 14;
+  const twitterY = bioLines.length ? bioY + 28 : usernameY + 16;
 
-  const fontCSS = fontBase64
-    ? `@font-face{font-family:'Google Sans';src:url(data:font/ttf;base64,${fontBase64}) format('truetype');}`
-    : "";
-  const fontFamily = fontBase64 ? "'Google Sans'" : "'Segoe UI',Ubuntu,sans-serif";
+  const fontFamily =
+    "ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica Neue, Arial";
+  const headerY = P + avatarSize + 12;
+  const statLabelY = 28;
+  const statSubLabelY = 40;
 
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
     <title>${name}'s GitHub Stats</title>
@@ -91,30 +76,48 @@ export function renderCard(
       <clipPath id="b"><rect x="${P}" y="${barY}" width="${barWidth}" height="8" rx="4"/></clipPath>
     </defs>
     <style>
-      ${fontCSS}
       *{font-family:${fontFamily},sans-serif}
       .bg{fill:#${c.bg}}
       .title{font-size:18px;font-weight:700;fill:#${c.title}}
       .user{font-size:12px;fill:#${c.text};opacity:.7}
-      .bio{font-size:11px;fill:#${c.text};opacity:.6}
+      .bio{font-size:11px;fill:#${c.text};opacity:.65}
       .tw{font-size:11px;fill:#${c.text};opacity:.7}
       .stat{font-size:14px;font-weight:700;fill:#${c.text}}
+      .stat-label{font-size:9px;font-weight:600;fill:#${c.text};opacity:.55;text-transform:uppercase;letter-spacing:.6px}
+      .stat-sub{font-size:9px;font-weight:600;fill:#${c.text};opacity:.45;text-transform:uppercase;letter-spacing:.6px}
       .lang{font-size:10px;fill:#${c.text}}
-      .sec{font-size:9px;font-weight:600;fill:#${c.text};opacity:.5;text-transform:uppercase;letter-spacing:.5px}
+      .sec{font-size:9px;font-weight:600;fill:#${c.text};opacity:.5;text-transform:uppercase;letter-spacing:.6px}
     </style>
-    <rect class="bg" width="${W}" height="${H}" rx="8" stroke="${hideBorder ? "none" : `#${c.border}`}" stroke-width="1"/>
-    <circle cx="${P + avatarSize / 2}" cy="${P + avatarSize / 2}" r="${avatarSize / 2 + 3}" fill="none" stroke="#${c.icon}" stroke-width="2" opacity=".25"/>
+    <rect class="bg" width="${W}" height="${H}" rx="10" stroke="${hideBorder ? "none" : `#${c.border}`}" stroke-width="1"/>
+    <circle cx="${P + avatarSize / 2}" cy="${P + avatarSize / 2}" r="${avatarSize / 2 + 2}" fill="none" stroke="#${c.border}" stroke-width="1" opacity=".6"/>
     <image href="${avatar}" x="${P}" y="${P}" width="${avatarSize}" height="${avatarSize}" clip-path="url(#a)"/>
     <text x="${infoX}" y="${nameY}" class="title">${name}</text>
     <text x="${infoX}" y="${usernameY}" class="user">@${uname}${pronouns ? ` · ${pronouns}` : ""}</text>
-    ${bio ? `<text x="${infoX}" y="${bioY}" class="bio">${bio}</text>` : ""}
+    ${bioLines[0] ? `<text x="${infoX}" y="${bioY}" class="bio">${bioLines[0]}</text>` : ""}
+    ${bioLines[1] ? `<text x="${infoX}" y="${bioY + 12}" class="bio">${bioLines[1]}</text>` : ""}
     ${twitter ? `<g transform="translate(${infoX},${twitterY - 9})">${icon("x", c.icon, 11)}<text x="14" y="9" class="tw">@${twitter}</text></g>` : ""}
-    <g transform="translate(${P},${P + avatarSize + 16})">
-      <g>${icon("star", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.stars)}</text></g>
-      <g transform="translate(70,0)">${icon("commit", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.commits)}</text></g>
-      <g transform="translate(140,0)">${icon("pr", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.prs)}</text></g>
-      <g transform="translate(210,0)">${icon("issue", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.issues)}</text></g>
-      <g transform="translate(280,0)">${icon("repo", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.repos)}</text></g>
+    <g transform="translate(${P},${headerY})">
+      <g>
+        ${icon("star", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.stars)}</text>
+        <text x="0" y="${statLabelY}" class="stat-label">Stars</text>
+      </g>
+      <g transform="translate(100,0)">
+        ${icon("commit", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.commits)}</text>
+        <text x="0" y="${statLabelY}" class="stat-label">Commits</text>
+        <text x="0" y="${statSubLabelY}" class="stat-sub">Current Year</text>
+      </g>
+      <g transform="translate(220,0)">
+        ${icon("issue", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.issues)}</text>
+        <text x="0" y="${statLabelY}" class="stat-label">Issues</text>
+      </g>
+      <g transform="translate(320,0)">
+        ${icon("repo", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.repos)}</text>
+        <text x="0" y="${statLabelY}" class="stat-label">Repos</text>
+      </g>
+      <g transform="translate(405,0)">
+        ${icon("pr", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.prs)}</text>
+        <text x="0" y="${statLabelY}" class="stat-label">PRs</text>
+      </g>
     </g>
     <text x="${P}" y="${barY - 8}" class="sec">Top Languages</text>
     <rect x="${P}" y="${barY}" width="${barWidth}" height="8" rx="4" fill="#${c.text}" opacity=".1"/>

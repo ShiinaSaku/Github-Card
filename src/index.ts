@@ -7,7 +7,7 @@ const app = new Elysia()
     message: "GitHub Profile Card API",
     usage: "GET /card/:username",
     themes:
-      "dark, radical, merko, gruvbox, tokyonight, onedark, cobalt, synthwave, highcontrast, dracula",
+      "default, dark, radical, merko, gruvbox, tokyonight, onedark, cobalt, synthwave, highcontrast, dracula, monokai, nord, github_dark, pearl, slate, forest, rose, sand",
   }))
   .get(
     "/card/:username",
@@ -25,7 +25,8 @@ const app = new Elysia()
         });
 
         set.headers["Content-Type"] = "image/svg+xml";
-        set.headers["Cache-Control"] = "public, max-age=1800";
+        set.headers["Cache-Control"] =
+          "public, max-age=0, s-maxage=1800, stale-while-revalidate=1800";
         return svg;
       } catch (err: any) {
         set.status = 404;
@@ -45,4 +46,11 @@ const app = new Elysia()
       }),
     },
   );
-export default app
+
+if (import.meta.main) {
+  const port = Number(Bun.env.PORT || 3000);
+  app.listen(port);
+  console.log(`Dev server running on http://localhost:${port}`);
+}
+
+export default app;

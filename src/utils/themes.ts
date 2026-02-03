@@ -21,6 +21,11 @@ export const themes: Record<string, Theme> = {
   monokai: { bg: "272822", title: "f92672", text: "f8f8f2", icon: "a6e22e", border: "3e3d32" },
   nord: { bg: "2e3440", title: "88c0d0", text: "d8dee9", icon: "81a1c1", border: "3b4252" },
   github_dark: { bg: "0d1117", title: "58a6ff", text: "c9d1d9", icon: "1f6feb", border: "21262d" },
+  pearl: { bg: "f7f7f5", title: "1f2328", text: "3d444d", icon: "0969da", border: "e6e8eb" },
+  slate: { bg: "0b1220", title: "e2e8f0", text: "94a3b8", icon: "38bdf8", border: "1f2937" },
+  forest: { bg: "0f1b17", title: "b7f7d9", text: "86a995", icon: "34d399", border: "17332a" },
+  rose: { bg: "1a0f14", title: "ffd0dd", text: "e6b0c0", icon: "fb7185", border: "2b1a22" },
+  sand: { bg: "fbf7f0", title: "6b4e2e", text: "7a6754", icon: "d97706", border: "eadfce" },
 };
 
 export function resolveColors(opts: {
