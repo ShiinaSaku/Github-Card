@@ -13,7 +13,17 @@ const app = new Elysia()
     "/card/:username",
     async ({ params: { username }, query, set }) => {
       try {
-        const data = await getProfileData(username);
+        const fields = query.fields
+          ? new Set(
+              query.fields
+                .split(",")
+                .map((v) => v.trim().toLowerCase())
+                .filter(Boolean),
+            )
+          : null;
+        const includeLanguages =
+          !fields || fields.has("all") || fields.has("languages") || fields.has("langs");
+        const data = await getProfileData(username, { includeLanguages });
         const svg = renderCard(data.user, data.stats, data.languages, {
           theme: query.theme,
           title_color: query.title_color,
@@ -22,6 +32,7 @@ const app = new Elysia()
           bg_color: query.bg_color,
           border_color: query.border_color,
           hide_border: query.hide_border === "true",
+          compact: query.compact !== "false",
         });
 
         set.headers["Content-Type"] = "image/svg+xml";
@@ -43,6 +54,8 @@ const app = new Elysia()
         bg_color: t.Optional(t.String()),
         border_color: t.Optional(t.String()),
         hide_border: t.Optional(t.String()),
+        compact: t.Optional(t.String()),
+        fields: t.Optional(t.String()),
       }),
     },
   );

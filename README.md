@@ -1,22 +1,30 @@
 # GitHub Profile Card
 
 <p align="left">
-	<a href="https://card.shiina.xyz"><strong>Live Demo</strong></a>
-	·
-	<a href="#usage">Usage</a>
-	·
-	<a href="#parameters">Parameters</a>
-	·
-	<a href="#themes">Themes</a>
-	·
-	<a href="#local-development">Local Development</a>
+  <img src="./logo.svg" alt="GitHub Profile Card" height="72" />
+</p>
+
+<p align="left">
+  <img alt="CI" src="https://github.com/ShiinaSaku/Github-Card/actions/workflows/ci.yml/badge.svg" />
+</p>
+
+<p align="left">
+  <a href="https://card.shiina.xyz"><strong>Live Demo</strong></a>
+  ·
+  <a href="#usage">Usage</a>
+  ·
+  <a href="#parameters">Parameters</a>
+  ·
+  <a href="#themes">Themes</a>
+  ·
+  <a href="#local-development">Local Development</a>
 </p>
 
 Modern, lightweight GitHub profile cards built with Bun and Elysia. Data is sourced from GitHub GraphQL and cached via Upstash Redis for fast Vercel Functions.
 
 <p align="left">
-	<a href="https://bun.com"><img alt="Bun" src="./bun.svg" height="28"></a>
-	<a href="https://elysiajs.com"><img alt="Elysia" src="./elysia.svg" height="28"></a>
+  <a href="https://bun.com"><img alt="Bun" src="./bun.svg" height="28"></a>
+  <a href="https://elysiajs.com"><img alt="Elysia" src="./elysia.svg" height="28"></a>
 </p>
 
 ---
@@ -29,6 +37,12 @@ Base URL:
 https://card.shiina.xyz/card/:username
 ```
 
+If you deploy to Vercel with the provided `vercel.json`, use:
+
+```
+https://<your-domain>/api/card/:username
+```
+
 Example:
 
 ```
@@ -37,22 +51,30 @@ https://card.shiina.xyz/card/ShiinaSaku
 
 ## Parameters
 
-All parameters are optional.
+All parameters are optional. By default, the card renders in compact mode.
 
-| Param          | Type    | Description                 |
-| -------------- | ------- | --------------------------- |
-| `theme`        | string  | Theme name (see list below) |
-| `title_color`  | string  | Hex color without `#`       |
-| `text_color`   | string  | Hex color without `#`       |
-| `icon_color`   | string  | Hex color without `#`       |
-| `bg_color`     | string  | Hex color without `#`       |
-| `border_color` | string  | Hex color without `#`       |
-| `hide_border`  | boolean | `true` to hide border       |
+| Param          | Type    | Description                      |
+| -------------- | ------- | -------------------------------- |
+| `theme`        | string  | Theme name (see list below)      |
+| `title_color`  | string  | Hex color without `#`            |
+| `text_color`   | string  | Hex color without `#`            |
+| `icon_color`   | string  | Hex color without `#`            |
+| `bg_color`     | string  | Hex color without `#`            |
+| `border_color` | string  | Hex color without `#`            |
+| `hide_border`  | boolean | `true` to hide border            |
+| `compact`      | boolean | `false` to show bio and labels   |
+| `fields`       | string  | Comma list: `languages` or `all` |
 
 Example with custom colors:
 
 ```
 https://card.shiina.xyz/card/ShiinaSaku?bg_color=0d1117&text_color=c9d1d9&title_color=58a6ff&icon_color=1f6feb&border_color=21262d
+```
+
+Fast mode (skip languages):
+
+```
+https://card.shiina.xyz/card/ShiinaSaku?fields=stats
 ```
 
 ## Themes
@@ -94,14 +116,6 @@ GitHub Dark:
 Tokyo Night:
 
 ![Tokyo Night](https://card.shiina.xyz/card/ShiinaSaku?theme=tokyonight)
-
-Forest:
-
-![Forest](https://card.shiina.xyz/card/ShiinaSaku?theme=forest)
-
-Rose:
-
-![Rose](https://card.shiina.xyz/card/ShiinaSaku?theme=rose)
 
 ## What it shows
 

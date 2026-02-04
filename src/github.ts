@@ -1,16 +1,17 @@
 import type { ProfileData, LanguageStat } from "./types";
-import { Redis } from "@upstash/redis";
+import { Buffer } from "buffer";
 
-const GITHUB_TOKEN = Bun.env.GITHUB_TOKEN;
-if (!GITHUB_TOKEN) throw new Error("GITHUB_TOKEN is missing");
+function getHeaders() {
+  const token = Bun.env.GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+  if (!token) throw new Error("GITHUB_TOKEN is missing");
+  return {
+    Authorization: `bearer ${token}`,
+    "Content-Type": "application/json",
+    "User-Agent": "github-card",
+  };
+}
 
-const HEADERS = {
-  Authorization: `bearer ${GITHUB_TOKEN}`,
-  "Content-Type": "application/json",
-  "User-Agent": "github-card",
-};
-
-const QUERY = `
+const QUERY_WITH_LANGS = `
 query userInfo($login: String!, $cursor: String, $from: DateTime!, $to: DateTime!) {
   user(login: $login) {
     login
@@ -40,65 +41,129 @@ query userInfo($login: String!, $cursor: String, $from: DateTime!, $to: DateTime
   }
 }`;
 
+const QUERY_NO_LANGS = `
+query userInfo($login: String!, $cursor: String, $from: DateTime!, $to: DateTime!) {
+  user(login: $login) {
+    login
+    name
+    avatarUrl
+    bio
+    pronouns
+    twitterUsername
+    openPRs: pullRequests(states: OPEN) { totalCount }
+    closedPRs: pullRequests(states: CLOSED) { totalCount }
+    mergedPRs: pullRequests(states: MERGED) { totalCount }
+    openIssues: issues(states: OPEN) { totalCount }
+    closedIssues: issues(states: CLOSED) { totalCount }
+    contributionsCollection(from: $from, to: $to) {
+      totalCommitContributions
+    }
+    repositories(first: 100, ownerAffiliations: OWNER, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}, after: $cursor) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        stargazers { totalCount }
+      }
+    }
+  }
+}`;
+
 const CACHE_TTL_SECONDS = 30 * 60;
 const cache = new Map<
   string,
   { expiresAt: number; value?: ProfileData; inFlight?: Promise<ProfileData> }
 >();
 
+type FetchOptions = {
+  includeLanguages?: boolean;
+};
+
 const redisUrl = Bun.env.UPSTASH_REDIS_REST_URL || Bun.env.KV_REST_API_URL || "";
 const redisToken = Bun.env.UPSTASH_REDIS_REST_TOKEN || Bun.env.KV_REST_API_TOKEN || "";
-const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
+let redisPromise: Promise<import("@upstash/redis").Redis | null> | null = null;
 
-function getCache(username: string): ProfileData | null {
-  const entry = cache.get(username);
+async function getRedis() {
+  if (!redisUrl || !redisToken) return null;
+  if (!redisPromise) {
+    redisPromise = import("@upstash/redis")
+      .then((mod) => new mod.Redis({ url: redisUrl, token: redisToken }))
+      .catch(() => null);
+  }
+  return redisPromise;
+}
+
+async function fetchAvatarDataUrl(url: string): Promise<string | null> {
+  try {
+    const sizedUrl = `${url}${url.includes("?") ? "&" : "?"}s=96`;
+    const res = await fetch(sizedUrl, { headers: { "User-Agent": "github-card" } });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") || "image/png";
+    const bytes = await res.arrayBuffer();
+    const base64 = Buffer.from(bytes).toString("base64");
+    return `data:${contentType};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
+function getCache(cacheKey: string): ProfileData | null {
+  const entry = cache.get(cacheKey);
   if (!entry) return null;
   if (entry.expiresAt <= Date.now()) {
-    cache.delete(username);
+    cache.delete(cacheKey);
     return null;
   }
   return entry.value ?? null;
 }
 
-function setCache(username: string, value: ProfileData) {
-  cache.set(username, { expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000, value });
+function setCache(cacheKey: string, value: ProfileData) {
+  cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000, value });
 }
 
-export async function getProfileData(username: string): Promise<ProfileData> {
-  const cached = getCache(username);
+export async function getProfileData(
+  username: string,
+  opts: FetchOptions = {},
+): Promise<ProfileData> {
+  const includeLanguages = opts.includeLanguages ?? true;
+  const cacheKey = `${username}:${includeLanguages ? "langs" : "nolangs"}`;
+
+  const cached = getCache(cacheKey);
   if (cached) return cached;
 
+  const redis = await getRedis();
   if (redis) {
     try {
-      const redisValue = await redis.get<ProfileData>(`profile:${username}`);
+      const redisValue = await redis.get<ProfileData>(`profile:${cacheKey}`);
       if (redisValue) {
-        setCache(username, redisValue);
+        setCache(cacheKey, redisValue);
         return redisValue;
       }
     } catch {}
   }
 
-  const existing = cache.get(username);
+  const existing = cache.get(cacheKey);
   if (existing?.inFlight) return existing.inFlight;
 
   const inFlight = (async () => {
     try {
       const now = new Date();
-      const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0));
-      const from = yearStart.toISOString();
+      const from = new Date(Date.UTC(1970, 0, 1, 0, 0, 0)).toISOString();
       const to = now.toISOString();
 
       let hasNextPage = true;
       let cursor: string | null = null;
       let user: any = null;
       let totalStars = 0;
-      const langMap = new Map<string, { size: number; color: string }>();
+      const langMap = includeLanguages ? new Map<string, { size: number; color: string }>() : null;
 
       while (hasNextPage) {
         const res = await fetch("https://api.github.com/graphql", {
           method: "POST",
-          headers: HEADERS,
-          body: JSON.stringify({ query: QUERY, variables: { login: username, cursor, from, to } }),
+          headers: getHeaders(),
+          body: JSON.stringify({
+            query: includeLanguages ? QUERY_WITH_LANGS : QUERY_NO_LANGS,
+            variables: { login: username, cursor, from, to },
+          }),
         });
 
         if (!res.ok) {
@@ -116,14 +181,16 @@ export async function getProfileData(username: string): Promise<ProfileData> {
 
         for (const repo of nodes) {
           totalStars += repo.stargazers.totalCount;
-          const edges = repo.languages?.edges || [];
-          for (const edge of edges) {
-            if (!edge.node || !edge.size) continue;
-            const current = langMap.get(edge.node.name);
-            if (current) {
-              current.size += edge.size;
-            } else {
-              langMap.set(edge.node.name, { size: edge.size, color: edge.node.color || "#ccc" });
+          if (langMap) {
+            const edges = repo.languages?.edges || [];
+            for (const edge of edges) {
+              if (!edge.node || !edge.size) continue;
+              const current = langMap.get(edge.node.name);
+              if (current) {
+                current.size += edge.size;
+              } else {
+                langMap.set(edge.node.name, { size: edge.size, color: edge.node.color || "#ccc" });
+              }
             }
           }
         }
@@ -133,16 +200,20 @@ export async function getProfileData(username: string): Promise<ProfileData> {
         if (nodes.length === 0) hasNextPage = false;
       }
 
-      const languages: LanguageStat[] = Array.from(langMap.entries())
-        .sort((a, b) => b[1].size - a[1].size)
-        .slice(0, 5)
-        .map(([name, d]) => ({ name, size: d.size, color: d.color }));
+      const languages: LanguageStat[] = langMap
+        ? Array.from(langMap.entries())
+            .sort((a, b) => b[1].size - a[1].size)
+            .slice(0, 5)
+            .map(([name, d]) => ({ name, size: d.size, color: d.color }))
+        : [];
 
+      const avatarDataUrl = await fetchAvatarDataUrl(user.avatarUrl);
       const profile: ProfileData = {
         user: {
           login: user.login,
           name: user.name,
           avatarUrl: user.avatarUrl,
+          avatarDataUrl,
           bio: user.bio,
           pronouns: user.pronouns,
           twitter: user.twitterUsername,
@@ -160,19 +231,19 @@ export async function getProfileData(username: string): Promise<ProfileData> {
         languages,
       };
 
-      setCache(username, profile);
+      setCache(cacheKey, profile);
       if (redis) {
         try {
-          await redis.set(`profile:${username}`, profile, { ex: CACHE_TTL_SECONDS });
+          await redis.set(`profile:${cacheKey}`, profile, { ex: CACHE_TTL_SECONDS });
         } catch {}
       }
       return profile;
     } catch (err) {
-      cache.delete(username);
+      cache.delete(cacheKey);
       throw err;
     }
   })();
 
-  cache.set(username, { expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000, inFlight });
+  cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_SECONDS * 1000, inFlight });
   return inFlight;
 }

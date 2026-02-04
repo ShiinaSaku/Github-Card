@@ -9,6 +9,7 @@ export type CardOpts = {
   bg_color?: string;
   border_color?: string;
   hide_border?: boolean;
+  compact?: boolean;
 };
 
 export function renderCard(
@@ -19,14 +20,16 @@ export function renderCard(
 ): string {
   const c = resolveColors(opts);
   const hideBorder = opts.hide_border ?? false;
+  const compact = opts.compact ?? true;
 
   const name = escapeXml(user.name || user.login);
   const uname = escapeXml(user.login);
-  const bioRaw = user.bio ? escapeXml(user.bio) : "";
+  const bioRaw = !compact && user.bio ? escapeXml(user.bio) : "";
   const bioLines = bioRaw ? wrapText(bioRaw, 42, 2) : [];
-  const pronouns = user.pronouns ? escapeXml(user.pronouns) : "";
-  const avatar = user.avatarUrl.replace(/&/g, "&amp;");
-  const twitter = user.twitter ? escapeXml(user.twitter) : "";
+  const pronouns = !compact && user.pronouns ? escapeXml(user.pronouns) : "";
+  const avatarSource = user.avatarDataUrl || user.avatarUrl;
+  const avatar = avatarSource.replace(/&/g, "&amp;");
+  const twitter = !compact && user.twitter ? escapeXml(user.twitter) : "";
 
   const W = 500;
   const H = 200;
@@ -48,15 +51,15 @@ export function renderCard(
     })
     .join("");
 
-  const labelSpacing = Math.floor(barWidth / Math.max(langs.length, 1));
-  const langLabels = langs
-    .map((lang, i) => {
-      const pct = ((lang.size / totalSize) * 100).toFixed(0);
-      const maxLen = Math.max(6, Math.floor(labelSpacing / 8) - 4);
-      const display = lang.name.length > maxLen ? lang.name.slice(0, maxLen) + "…" : lang.name;
-      return `<circle cx="${P + i * labelSpacing + 5}" cy="${labelY}" r="4" fill="${lang.color}"/><text x="${P + i * labelSpacing + 13}" y="${labelY + 4}" class="lang">${display} ${pct}%</text>`;
-    })
-    .join("");
+  const labelSpacing = compact ? 0 : Math.floor(barWidth / Math.max(langs.length, 1));
+  const langLabels = compact
+    ? ""
+    : langs
+        .map((lang, i) => {
+          const pct = ((lang.size / totalSize) * 100).toFixed(0);
+          return `<circle cx="${P + i * labelSpacing + 5}" cy="${labelY}" r="4" fill="${lang.color}"/><text x="${P + i * labelSpacing + 13}" y="${labelY + 4}" class="lang">${lang.name} ${pct}%</text>`;
+        })
+        .join("");
 
   const nameY = P + 22;
   const usernameY = nameY + 18;
@@ -67,9 +70,8 @@ export function renderCard(
     "ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica Neue, Arial";
   const headerY = P + avatarSize + 12;
   const statLabelY = 28;
-  const statSubLabelY = 40;
 
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="optimizeLegibility" image-rendering="optimizeQuality">
     <title>${name}'s GitHub Stats</title>
     <defs>
       <clipPath id="a"><circle cx="${P + avatarSize / 2}" cy="${P + avatarSize / 2}" r="${avatarSize / 2}"/></clipPath>
@@ -80,12 +82,9 @@ export function renderCard(
       .bg{fill:#${c.bg}}
       .title{font-size:18px;font-weight:700;fill:#${c.title}}
       .user{font-size:12px;fill:#${c.text};opacity:.7}
-      .bio{font-size:11px;fill:#${c.text};opacity:.65}
-      .tw{font-size:11px;fill:#${c.text};opacity:.7}
+      ${compact ? "" : `.bio{font-size:11px;fill:#${c.text};opacity:.65}.tw{font-size:11px;fill:#${c.text};opacity:.7}.lang{font-size:10px;fill:#${c.text}}`}
       .stat{font-size:14px;font-weight:700;fill:#${c.text}}
       .stat-label{font-size:9px;font-weight:600;fill:#${c.text};opacity:.55;text-transform:uppercase;letter-spacing:.6px}
-      .stat-sub{font-size:9px;font-weight:600;fill:#${c.text};opacity:.45;text-transform:uppercase;letter-spacing:.6px}
-      .lang{font-size:10px;fill:#${c.text}}
       .sec{font-size:9px;font-weight:600;fill:#${c.text};opacity:.5;text-transform:uppercase;letter-spacing:.6px}
     </style>
     <rect class="bg" width="${W}" height="${H}" rx="10" stroke="${hideBorder ? "none" : `#${c.border}`}" stroke-width="1"/>
@@ -93,9 +92,9 @@ export function renderCard(
     <image href="${avatar}" x="${P}" y="${P}" width="${avatarSize}" height="${avatarSize}" clip-path="url(#a)"/>
     <text x="${infoX}" y="${nameY}" class="title">${name}</text>
     <text x="${infoX}" y="${usernameY}" class="user">@${uname}${pronouns ? ` · ${pronouns}` : ""}</text>
-    ${bioLines[0] ? `<text x="${infoX}" y="${bioY}" class="bio">${bioLines[0]}</text>` : ""}
-    ${bioLines[1] ? `<text x="${infoX}" y="${bioY + 12}" class="bio">${bioLines[1]}</text>` : ""}
-    ${twitter ? `<g transform="translate(${infoX},${twitterY - 9})">${icon("x", c.icon, 11)}<text x="14" y="9" class="tw">@${twitter}</text></g>` : ""}
+    ${!compact && bioLines[0] ? `<text x="${infoX}" y="${bioY}" class="bio">${bioLines[0]}</text>` : ""}
+    ${!compact && bioLines[1] ? `<text x="${infoX}" y="${bioY + 12}" class="bio">${bioLines[1]}</text>` : ""}
+    ${!compact && twitter ? `<g transform="translate(${infoX},${twitterY - 9})">${icon("x", c.icon, 11)}<text x="14" y="9" class="tw">@${twitter}</text></g>` : ""}
     <g transform="translate(${P},${headerY})">
       <g>
         ${icon("star", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.stars)}</text>
@@ -104,7 +103,6 @@ export function renderCard(
       <g transform="translate(100,0)">
         ${icon("commit", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.commits)}</text>
         <text x="0" y="${statLabelY}" class="stat-label">Commits</text>
-        <text x="0" y="${statSubLabelY}" class="stat-sub">Current Year</text>
       </g>
       <g transform="translate(220,0)">
         ${icon("issue", c.icon, 16)}<text x="20" y="12" class="stat">${kFormat(stats.issues)}</text>
