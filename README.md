@@ -167,3 +167,13 @@ Vercel uses `vercel.json` in this repo. The app runs on Bun and Elysia automatic
 - [Live Demo](https://card.shiina.xyz)
 - [Themes](#themes)
 - [Parameters](#parameters)
+---
+## Star History
+
+<a href="https://www.star-history.com/#ShiinaSaku/Github-Card&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=ShiinaSaku/Github-Card&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=ShiinaSaku/Github-Card&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=ShiinaSaku/Github-Card&type=date&legend=top-left" />
+ </picture>
+</a>
