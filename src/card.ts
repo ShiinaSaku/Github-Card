@@ -20,7 +20,7 @@ export function renderCard(
 ): string {
   const c = resolveColors(opts);
   const hideBorder = opts.hide_border ?? false;
-  const compact = opts.compact ?? true;
+  const compact = opts.compact ?? false;
 
   const name = escapeXml(user.name || user.login);
   const uname = escapeXml(user.login);

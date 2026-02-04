@@ -32,7 +32,7 @@ const app = new Elysia()
           bg_color: query.bg_color,
           border_color: query.border_color,
           hide_border: query.hide_border === "true",
-          compact: query.compact !== "false",
+          compact: query.compact === "true",
         });
 
         set.headers["Content-Type"] = "image/svg+xml";
