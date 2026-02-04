@@ -147,7 +147,8 @@ export async function getProfileData(
   const inFlight = (async () => {
     try {
       const now = new Date();
-      const from = new Date(Date.UTC(1970, 0, 1, 0, 0, 0)).toISOString();
+      const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1, 0, 0, 0));
+      const from = yearStart.toISOString();
       const to = now.toISOString();
 
       let hasNextPage = true;
