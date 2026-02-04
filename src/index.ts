@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
-import { getProfileData } from "@/github";
-import { renderCard } from "@/card";
+import { getProfileData } from "./github";
+import { renderCard } from "./card";
 
 const app = new Elysia()
   .get("/", () => ({

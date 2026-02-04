@@ -1,4 +1,4 @@
-import type { ProfileData, LanguageStat } from "@/types";
+import type { ProfileData, LanguageStat } from "./types";
 import { Redis } from "@upstash/redis";
 
 const GITHUB_TOKEN = Bun.env.GITHUB_TOKEN;

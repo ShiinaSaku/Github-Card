@@ -1,5 +1,5 @@
-import { resolveColors, kFormat, escapeXml, icon, wrapText } from "@/utils";
-import type { UserProfile, UserStats, LanguageStat } from "@/types";
+import { resolveColors, kFormat, escapeXml, icon, wrapText } from "./utils";
+import type { UserProfile, UserStats, LanguageStat } from "./types";
 
 export type CardOpts = {
   theme?: string;

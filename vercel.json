@@ -6,5 +6,11 @@
       "source": "/",
       "destination": "https://github.com/shiinasaku/Github-Card"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/:path*"
+    }
   ]
 }
