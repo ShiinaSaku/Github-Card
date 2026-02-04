@@ -18,18 +18,18 @@ const baseLangs = [
 ];
 
 describe("renderCard", () => {
-  it("renders compact output by default", () => {
+  it("renders detailed output by default", () => {
     const svg = renderCard(baseUser, baseStats, baseLangs, {});
-    expect(svg.includes('class="bio"')).toBe(false);
-    expect(svg.includes('class="tw"')).toBe(false);
-    expect(svg.includes('class="lang"')).toBe(false);
-  });
-
-  it("renders details when compact is false", () => {
-    const svg = renderCard(baseUser, baseStats, baseLangs, { compact: false });
     expect(svg.includes('class="bio"')).toBe(true);
     expect(svg.includes('class="tw"')).toBe(true);
     expect(svg.includes('class="lang"')).toBe(true);
+  });
+
+  it("renders compact output when compact is true", () => {
+    const svg = renderCard(baseUser, baseStats, baseLangs, { compact: true });
+    expect(svg.includes('class="bio"')).toBe(false);
+    expect(svg.includes('class="tw"')).toBe(false);
+    expect(svg.includes('class="lang"')).toBe(false);
   });
 
   it("uses embedded avatar when provided", () => {
