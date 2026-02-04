@@ -19,13 +19,12 @@ jobs:
       GITHUB_TOKEN: test
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.x"
-          cache: true
+          bun-version: latest
 
       - name: Install
         run: bun install --frozen-lockfile
