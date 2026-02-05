@@ -1,14 +1,22 @@
 import { Elysia, t } from "elysia";
+import { html } from "@elysiajs/html";
+import { staticPlugin } from "@elysiajs/static";
 import { getProfileData } from "./github";
 import { renderCard } from "./card";
 
+// Read the landing page HTML
+const landingHTML = await Bun.file("./src/landing.html").text();
+
 const app = new Elysia()
-  .get("/", () => ({
-    message: "GitHub Profile Card API",
-    usage: "GET /card/:username",
-    themes:
-      "default, dark, radical, merko, gruvbox, tokyonight, onedark, cobalt, synthwave, highcontrast, dracula, monokai, nord, github_dark, pearl, slate, forest, rose, sand",
+  .use(html())
+  .use(staticPlugin({
+    assets: "./",
+    prefix: "/",
   }))
+  .get("/", ({ set }) => {
+    set.headers["Content-Type"] = "text/html; charset=utf-8";
+    return landingHTML;
+  })
   .get(
     "/card/:username",
     async ({ params: { username }, query, set }) => {

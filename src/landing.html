@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Profile Card API</title>
+  <meta name="description" content="Modern, lightweight GitHub profile cards built with Bun and Elysia">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #c9d1d9;
+      background: #0d1117;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      padding: 3rem 0;
+      border-bottom: 1px solid #21262d;
+    }
+
+    h1 {
+      font-size: 3rem;
+      color: #58a6ff;
+      margin-bottom: 1rem;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: #8b949e;
+      margin-bottom: 2rem;
+    }
+
+    .badges {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .badges img {
+      height: 28px;
+    }
+
+    .section {
+      margin: 3rem 0;
+    }
+
+    h2 {
+      font-size: 2rem;
+      color: #58a6ff;
+      margin-bottom: 1rem;
+    }
+
+    .demo-card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 2rem;
+      margin: 2rem 0;
+    }
+
+    .demo-card img {
+      max-width: 100%;
+      border-radius: 4px;
+    }
+
+    .code-block {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+
+    code {
+      color: #ff7b72;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+
+    .usage-example {
+      background: #161b22;
+      border-left: 4px solid #58a6ff;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #21262d;
+    }
+
+    th {
+      background: #1c2128;
+      color: #58a6ff;
+      font-weight: 600;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .themes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    .theme-item {
+      background: #161b22;
+      border: 1px solid #21262d;
+      padding: 0.75rem;
+      border-radius: 4px;
+      text-align: center;
+      color: #8b949e;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem 0;
+      border-top: 1px solid #21262d;
+      margin-top: 3rem;
+      color: #8b949e;
+    }
+
+    a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .cta {
+      display: inline-block;
+      background: #238636;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      margin: 1rem 0.5rem;
+      font-weight: 600;
+    }
+
+    .cta:hover {
+      background: #2ea043;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎴 GitHub Profile Card</h1>
+      <p class="subtitle">Modern, lightweight GitHub profile cards built with Bun and Elysia</p>
+      <div class="badges">
+        <a href="https://bun.com" target="_blank" rel="noopener"><img src="/bun.svg" alt="Bun" height="28"></a>
+        <a href="https://elysiajs.com" target="_blank" rel="noopener"><img src="/elysia.svg" alt="Elysia" height="28"></a>
+      </div>
+      <div style="margin-top: 1.5rem;">
+        <a href="https://github.com/ShiinaSaku/Github-Card" class="cta" target="_blank" rel="noopener">View on GitHub</a>
+        <a href="#usage" class="cta" style="background: #1f6feb;">Get Started</a>
+      </div>
+    </header>
+
+    <section class="section" id="demo">
+      <h2>📸 Live Demo</h2>
+      <div class="demo-card">
+        <h3 style="margin-bottom: 1rem;">Default Theme</h3>
+        <img src="/card/ShiinaSaku" alt="GitHub Card Demo">
+      </div>
+      <div class="demo-card">
+        <h3 style="margin-bottom: 1rem;">GitHub Dark Theme</h3>
+        <img src="/card/ShiinaSaku?theme=github_dark" alt="GitHub Dark Theme">
+      </div>
+      <div class="demo-card">
+        <h3 style="margin-bottom: 1rem;">Tokyo Night Theme</h3>
+        <img src="/card/ShiinaSaku?theme=tokyonight" alt="Tokyo Night Theme">
+      </div>
+    </section>
+
+    <section class="section" id="usage">
+      <h2>🚀 Usage</h2>
+      <p>Generate a GitHub profile card by using the following URL format:</p>
+      <div class="code-block">
+        <code>https://card.shiina.xyz/card/:username</code>
+      </div>
+      <div class="usage-example">
+        <strong>Example:</strong><br>
+        <code>https://card.shiina.xyz/card/ShiinaSaku</code>
+      </div>
+      <p style="margin-top: 1rem;">Use this in your README or website to display dynamic GitHub profile cards!</p>
+    </section>
+
+    <section class="section" id="parameters">
+      <h2>⚙️ Parameters</h2>
+      <p>All parameters are optional. Customize your card with the following options:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>theme</code></td>
+            <td>string</td>
+            <td>Theme name (see themes section)</td>
+          </tr>
+          <tr>
+            <td><code>title_color</code></td>
+            <td>string</td>
+            <td>Hex color without <code>#</code></td>
+          </tr>
+          <tr>
+            <td><code>text_color</code></td>
+            <td>string</td>
+            <td>Hex color without <code>#</code></td>
+          </tr>
+          <tr>
+            <td><code>icon_color</code></td>
+            <td>string</td>
+            <td>Hex color without <code>#</code></td>
+          </tr>
+          <tr>
+            <td><code>bg_color</code></td>
+            <td>string</td>
+            <td>Hex color without <code>#</code></td>
+          </tr>
+          <tr>
+            <td><code>border_color</code></td>
+            <td>string</td>
+            <td>Hex color without <code>#</code></td>
+          </tr>
+          <tr>
+            <td><code>hide_border</code></td>
+            <td>boolean</td>
+            <td><code>true</code> to hide border</td>
+          </tr>
+          <tr>
+            <td><code>compact</code></td>
+            <td>boolean</td>
+            <td><code>false</code> to show bio and labels</td>
+          </tr>
+          <tr>
+            <td><code>fields</code></td>
+            <td>string</td>
+            <td>Comma-separated list: <code>languages</code> or <code>all</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="usage-example" style="margin-top: 1rem;">
+        <strong>Custom colors example:</strong><br>
+        <code>https://card.shiina.xyz/card/ShiinaSaku?bg_color=0d1117&text_color=c9d1d9&title_color=58a6ff</code>
+      </div>
+    </section>
+
+    <section class="section" id="themes">
+      <h2>🎨 Themes</h2>
+      <p>Choose from a variety of built-in themes:</p>
+      <div class="themes-grid">
+        <div class="theme-item">default</div>
+        <div class="theme-item">dark</div>
+        <div class="theme-item">radical</div>
+        <div class="theme-item">merko</div>
+        <div class="theme-item">gruvbox</div>
+        <div class="theme-item">tokyonight</div>
+        <div class="theme-item">onedark</div>
+        <div class="theme-item">cobalt</div>
+        <div class="theme-item">synthwave</div>
+        <div class="theme-item">highcontrast</div>
+        <div class="theme-item">dracula</div>
+        <div class="theme-item">monokai</div>
+        <div class="theme-item">nord</div>
+        <div class="theme-item">github_dark</div>
+        <div class="theme-item">pearl</div>
+        <div class="theme-item">slate</div>
+        <div class="theme-item">forest</div>
+        <div class="theme-item">rose</div>
+        <div class="theme-item">sand</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>📊 What it shows</h2>
+      <p>The card displays the following information:</p>
+      <ul style="margin-left: 2rem; margin-top: 1rem;">
+        <li>Total stars across owned repositories (excluding forks)</li>
+        <li>Total commits for the current year</li>
+        <li>Total issues (open + closed)</li>
+        <li>Total owned repositories (excluding forks)</li>
+        <li>Total pull requests (open + closed + merged)</li>
+        <li>Top 5 programming languages</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Built with ❤️ using <a href="https://bun.com" target="_blank" rel="noopener">Bun</a> and <a href="https://elysiajs.com" target="_blank" rel="noopener">Elysia</a></p>
+      <p style="margin-top: 0.5rem;">
+        <a href="https://github.com/ShiinaSaku/Github-Card" target="_blank" rel="noopener">GitHub</a> · 
+        <a href="https://github.com/ShiinaSaku/Github-Card/issues" target="_blank" rel="noopener">Issues</a> · 
+        <a href="https://github.com/ShiinaSaku/Github-Card/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      </p>
+    </footer>
+  </div>
+
+  <!-- Vercel Web Analytics -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
