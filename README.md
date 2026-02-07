@@ -1,7 +1,7 @@
 # GitHub Profile Card
 
 <p align="left">
-  <img src="./logo.svg" alt="GitHub Profile Card" height="72" />
+  <img src="assets/logo.svg" alt="GitHub Profile Card" height="72" />
 </p>
 
 <p align="left">
@@ -23,8 +23,8 @@
 Modern, lightweight GitHub profile cards built with Bun and Elysia. Data is sourced from GitHub GraphQL and cached via Upstash Redis for fast Vercel Functions.
 
 <p align="left">
-  <a href="https://bun.com"><img alt="Bun" src="./bun.svg" height="28"></a>
-  <a href="https://elysiajs.com"><img alt="Elysia" src="./elysia.svg" height="28"></a>
+  <a href="https://bun.com"><img alt="Bun" src="assets/bun.svg" height="28"></a>
+  <a href="https://elysiajs.com"><img alt="Elysia" src="assets/elysia.svg" height="28"></a>
 </p>
 
 ---
@@ -167,7 +167,9 @@ Vercel uses `vercel.json` in this repo. The app runs on Bun and Elysia automatic
 - [Live Demo](https://card.shiina.xyz)
 - [Themes](#themes)
 - [Parameters](#parameters)
+
 ---
+
 ## Star History
 
 <a href="https://www.star-history.com/#ShiinaSaku/Github-Card&type=date&legend=top-left">

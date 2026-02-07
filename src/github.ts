@@ -175,8 +175,10 @@ export async function getProfileData(
         const body = (await res.json()) as any;
         if (body.errors?.length) {
           const msg =
-            body.errors.map((e: any) => e.message).filter(Boolean).join(" | ") ||
-            "GitHub API error";
+            body.errors
+              .map((e: any) => e.message)
+              .filter(Boolean)
+              .join(" | ") || "GitHub API error";
           throw new Error(msg);
         }
         if (!body.data?.user) throw new Error("User not found");
