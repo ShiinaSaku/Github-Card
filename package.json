@@ -1,11 +1,12 @@
 {
   "name": "github-card",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "homepage": "https://card.shiina.xyz",
   "license": "MIT",
   "author": {
     "name": "saku shiina",
-    "email": "saksham.mac@icloud.com"
+    "email": "saku@shiina.xyz",
+    "url": "https://www.shiina.xyz"
   },
   "repository": {
     "type": "git",
@@ -28,7 +29,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "oxfmt": "^0.27.0",
-    "oxlint": "^1.42.0",
+    "oxlint": "^1.47.0",
     "typescript": "^5.9.3"
   }
 }

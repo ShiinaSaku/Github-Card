@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    "group:allNonMajor",
+    ":maintainLockFilesWeekly",
+    ":semanticCommits"
+  ],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "groupName": "bun",
+      "matchPackageNames": ["@types/bun", "bun-types"]
+    },
+    {
+      "groupName": "oxc tools",
+      "matchPackageNames": ["oxlint", "oxfmt"],
+      "automerge": true
+    },
+    {
+      "matchPackageNames": ["elysia"],
+      "separateMinorPatch": true
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "rangeStrategy": "bump"
+}
