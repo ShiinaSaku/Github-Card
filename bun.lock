@@ -11,8 +11,8 @@
       "devDependencies": {
         "@types/bun": "latest",
         "oxfmt": "^0.27.0",
-        "oxlint": "^1.42.0",
-        "typescript": "^5.9.3",
+        "oxlint": "^1.47.0",
+        "typescript": "5.9.3",
       },
     },
   },
