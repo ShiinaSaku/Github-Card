@@ -5,7 +5,6 @@ const baseUser = {
   login: "octocat",
   name: "The Octocat",
   avatarUrl: "https://example.com/a.png",
-  avatarDataUrl: "data:image/png;base64,AAAA",
   bio: "Hello from the ocean",
   pronouns: "they/them",
   twitter: "octo",
@@ -32,8 +31,30 @@ describe("renderCard", () => {
     expect(svg.includes('class="lang"')).toBe(false);
   });
 
-  it("uses embedded avatar when provided", () => {
+  it("uses avatar URL in SVG", () => {
     const svg = renderCard(baseUser, baseStats, baseLangs, {});
-    expect(svg.includes("data:image/png;base64,AAAA")).toBe(true);
+    expect(svg.includes("https://example.com/a.png")).toBe(true);
+  });
+
+  it("hides selected stats when hide is provided", () => {
+    const svg = renderCard(baseUser, baseStats, baseLangs, { hide: ["issues", "prs", "stars"] });
+    expect(svg.includes("Issues")).toBe(false);
+    expect(svg.includes("PRs")).toBe(false);
+    expect(svg.includes("Stars")).toBe(false);
+    expect(svg.includes("Commits")).toBe(true);
+    expect(svg.includes("Repos")).toBe(true);
+  });
+
+  it("embeds @font-face with base64 WOFF2", () => {
+    const svg = renderCard(baseUser, baseStats, baseLangs, {});
+    expect(svg.includes("@font-face")).toBe(true);
+    expect(svg.includes("data:font/woff2;base64,")).toBe(true);
+    expect(svg.includes("'Roboto'")).toBe(true);
+  });
+
+  it("uses auto shape-rendering for smooth curves", () => {
+    const svg = renderCard(baseUser, baseStats, baseLangs, {});
+    expect(svg.includes('shape-rendering="auto"')).toBe(true);
+    expect(svg.includes('shape-rendering="crispEdges"')).toBe(false);
   });
 });

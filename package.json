@@ -1,6 +1,19 @@
 {
-  "name": "github-card",
-  "version": "1.2.0",
+  "name": "@saku/github-card",
+  "version": "2.0.0",
+  "description": "Beautiful GitHub stats SVG cards. Embed in README, use as API, or render programmatically.",
+  "keywords": [
+    "badge",
+    "bun",
+    "elysia",
+    "github",
+    "github-card",
+    "github-stats",
+    "profile-card",
+    "readme",
+    "stats",
+    "svg"
+  ],
   "homepage": "https://card.shiina.xyz",
   "license": "MIT",
   "author": {
@@ -12,24 +25,48 @@
     "type": "git",
     "url": "https://github.com/ShiinaSaku/Github-Card.git"
   },
+  "files": [
+    "src",
+    "fonts",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
+  "main": "./src/lib.ts",
+  "module": "./src/lib.ts",
+  "types": "./src/lib.ts",
+  "exports": {
+    ".": {
+      "types": "./src/lib.ts",
+      "import": "./src/lib.ts"
+    },
+    "./server": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --target bun --outdir dist",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "typecheck": "tsc --noEmit --skipLibCheck",
-    "test": "bun test"
+    "test": "bun test",
+    "test:coverage": "bun test --coverage"
   },
   "dependencies": {
+    "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/openapi": "^1.4.14",
+    "@elysiajs/server-timing": "^1.4.0",
     "@upstash/redis": "^1.36.2",
     "elysia": "latest"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "oxfmt": "0.32.0",
-    "oxlint": "1.47.0",
+    "oxfmt": "0.33.0",
+    "oxlint": "1.48.0",
     "typescript": "5.9.3"
   }
 }

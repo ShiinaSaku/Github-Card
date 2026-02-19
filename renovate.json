@@ -1,35 +1,30 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:best-practices",
-    "group:allNonMajor",
-    ":maintainLockFilesWeekly",
-    ":semanticCommits"
-  ],
-  "labels": ["dependencies"],
+  "extends": ["config:base"],
+  "automerge": true,
+  "schedule": ["at any time"],
   "packageRules": [
     {
-      "matchDepTypes": ["devDependencies"],
-      "automerge": true,
-      "automergeType": "branch"
-    },
-    {
-      "groupName": "bun",
-      "matchPackageNames": ["@types/bun", "bun-types"]
-    },
-    {
-      "groupName": "oxc tools",
-      "matchPackageNames": ["oxlint", "oxfmt"],
+      "description": "Group and automerge all patch updates",
+      "matchUpdateTypes": ["patch"],
+      "groupName": "all patch updates",
       "automerge": true
     },
     {
-      "matchPackageNames": ["elysia"],
-      "separateMinorPatch": true
+      "description": "Create separate PRs for major updates to key packages (Node.js, TypeScript)",
+      "matchPackageNames": ["node", "typescript"],
+      "matchUpdateTypes": ["major"],
+      "enabled": true,
+      "groupName": "major updates"
+    },
+    {
+      "description": "Group minor updates together and automerge if tests pass",
+      "matchUpdateTypes": ["minor"],
+      "groupName": "all minor updates"
     }
   ],
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true
-  },
-  "rangeStrategy": "bump"
+  }
 }

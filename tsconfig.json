@@ -3,7 +3,7 @@
     // Environment setup & latest features
     "lib": ["ESNext"],
     "target": "ESNext",
-    "module": "Preserve",
+    "module": "ESNext",
     "moduleDetection": "force",
     "jsx": "react-jsx",
     "allowJs": true,
@@ -17,6 +17,7 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
+    "composite": true,
 
     // Best practices
     "strict": true,
@@ -24,6 +25,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "downlevelIteration": true,
+
+    // Bun types
+    "types": ["bun-types"],
 
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,

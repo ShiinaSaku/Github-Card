@@ -2,7 +2,6 @@ export interface UserProfile {
   login: string;
   name: string | null;
   avatarUrl: string;
-  avatarDataUrl?: string | null;
   bio: string | null;
   pronouns: string | null;
   twitter: string | null;
@@ -37,4 +36,5 @@ export interface CardOptions {
   border_color?: string;
   hide_border?: boolean;
   compact?: boolean;
+  hide?: string[];
 }
