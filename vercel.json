@@ -1,11 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
-  "functions": {
-    "src/index.ts": {
-      "maxDuration": 30
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "https://github.com/shiinasaku/Github-Card"
     }
-  },
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
