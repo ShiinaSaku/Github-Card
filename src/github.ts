@@ -86,16 +86,19 @@ const LANG_FIELDS = `languages(first: 10, orderBy: {field: SIZE, direction: DESC
           edges { size node { color name } }
         }`;
 
-function buildUserReposQuery(langs: boolean): string {
-  return `query userInfo($login: String!, $cursor: String, $from: DateTime!, $to: DateTime!) {
-  user(login: $login) {
+const USER_META_FIELDS = `
     login name avatarUrl bio pronouns twitterUsername
     openPRs: pullRequests(states: OPEN) { totalCount }
     closedPRs: pullRequests(states: CLOSED) { totalCount }
     mergedPRs: pullRequests(states: MERGED) { totalCount }
     openIssues: issues(states: OPEN) { totalCount }
     closedIssues: issues(states: CLOSED) { totalCount }
-    contributionsCollection(from: $from, to: $to) { totalCommitContributions }
+    contributionsCollection(from: $from, to: $to) { totalCommitContributions }`;
+
+function buildUserReposQuery(langs: boolean): string {
+  return `query userInfo($login: String!, $cursor: String, $from: DateTime!, $to: DateTime!) {
+  user(login: $login) {
+    ${USER_META_FIELDS}
     repositories(first: 100, ownerAffiliations: OWNER, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}, after: $cursor) {
       totalCount
       pageInfo { hasNextPage endCursor }
@@ -132,24 +135,14 @@ function buildOrgContribsQuery(langs: boolean): string {
 const QUERY_USER_META = `
 query userMeta($login: String!, $from: DateTime!, $to: DateTime!) {
   user(login: $login) {
-    login
-    name
-    avatarUrl
-    bio
-    pronouns
-    twitterUsername
-    openPRs: pullRequests(states: OPEN) { totalCount }
-    closedPRs: pullRequests(states: CLOSED) { totalCount }
-    mergedPRs: pullRequests(states: MERGED) { totalCount }
-    openIssues: issues(states: OPEN) { totalCount }
-    closedIssues: issues(states: CLOSED) { totalCount }
-    contributionsCollection(from: $from, to: $to) { totalCommitContributions }
+    ${USER_META_FIELDS}
   }
 }`;
 
 const CACHE_FRESH_SECONDS = 30 * 60;
 const CACHE_STALE_SECONDS = 30 * 60;
 const FETCH_TIMEOUT_MS = 8000;
+const MAX_PAGES = 10; // Safety: 10 pages × 100 items = 1000 max
 type CacheEntry = {
   staleAt: number;
   expiresAt: number;
@@ -304,14 +297,18 @@ async function postGraphQL(query: string, variables: Record<string, unknown>): P
     throw classifyHttpError(res.status, text);
   }
 
-  const body = (await res.json()) as any;
+  const body = (await res.json()) as { data?: Record<string, any>; errors?: Array<{ message: string }> };
   if (body.errors?.length) {
     const msg =
       body.errors
-        .map((e: any) => e.message)
+        .map((e) => e.message)
         .filter(Boolean)
         .join(" | ") || "GitHub API error";
     throw classifyGraphQLError(msg) || new UpstreamError(msg);
+  }
+
+  if (!body.data) {
+    throw new UpstreamError("GitHub API returned no data");
   }
 
   return body;
@@ -319,6 +316,22 @@ async function postGraphQL(query: string, variables: Record<string, unknown>): P
 
 type RepoResult = { stars: number; repos: number; langMap: LangMap | null };
 type PersonalResult = RepoResult & { user: any };
+
+/** Fetches an avatar image and returns it as a base64 data URI. */
+async function fetchAvatarDataUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: { "User-Agent": "github-card" },
+    });
+    if (!res.ok) return url;
+    const buf = await res.arrayBuffer();
+    const mime = res.headers.get("content-type") || "image/png";
+    return `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
+  } catch {
+    return url; // fallback to raw URL
+  }
+}
 
 /** Fetches user metadata only (no repos). */
 async function fetchUserMeta(username: string, from: string, to: string): Promise<any> {
@@ -341,22 +354,23 @@ async function fetchPersonalRepos(
   let user: any = null;
   let stars = 0;
   let repos = 0;
+  let page = 0;
 
-  while (hasNext) {
+  while (hasNext && page++ < MAX_PAGES) {
     const body = await postGraphQL(query, { login: username, cursor, from, to });
     if (!body.data?.user) throw new NotFoundError("User not found");
     if (!user) user = body.data.user;
 
     const r = body.data.user.repositories;
-    if (!repos) repos = r.totalCount || 0;
-    for (const node of r.nodes || []) {
-      stars += node.stargazers.totalCount;
-      if (langMap) accumulateLanguageEdges(node.languages?.edges || [], langMap);
+    if (!repos) repos = r?.totalCount || 0;
+    for (const node of r?.nodes || []) {
+      stars += node?.stargazers?.totalCount || 0;
+      if (langMap) accumulateLanguageEdges(node?.languages?.edges || [], langMap);
     }
 
-    hasNext = Boolean(r.pageInfo.hasNextPage);
-    cursor = r.pageInfo.endCursor;
-    if (!r.nodes?.length) hasNext = false;
+    hasNext = Boolean(r?.pageInfo?.hasNextPage);
+    cursor = r?.pageInfo?.endCursor ?? null;
+    if (!r?.nodes?.length) hasNext = false;
   }
 
   return { user, stars, repos, langMap };
@@ -379,8 +393,9 @@ async function fetchOrgContributions(
   let cursor: string | null = null;
   let stars = 0;
   let repos = 0;
+  let page = 0;
 
-  while (hasNext) {
+  while (hasNext && page++ < MAX_PAGES) {
     const body = await postGraphQL(query, { login: username, cursor });
     if (!body.data?.user) throw new NotFoundError("User not found");
 
@@ -507,11 +522,15 @@ export async function getProfileData(
         ? buildLanguageStats(mergeLangMaps(pLangs, oLangs), langCount)
         : [];
 
+      // Embed avatar as base64 data URI for reliable rendering in <img> contexts
+      const avatarSized = user.avatarUrl + (user.avatarUrl.includes("?") ? "&" : "?") + "s=200";
+      const avatarDataUrl = await fetchAvatarDataUrl(avatarSized);
+
       const profile: ProfileData = {
         user: {
           login: user.login,
           name: user.name,
-          avatarUrl: user.avatarUrl,
+          avatarUrl: avatarDataUrl,
           bio: user.bio,
           pronouns: user.pronouns,
           twitter: user.twitterUsername,

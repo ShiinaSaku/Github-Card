@@ -28,8 +28,7 @@ export function renderCard(
   const bioRaw = !compact && user.bio ? escapeXml(user.bio) : "";
   const bioLines = bioRaw ? wrapText(bioRaw, 42, 2) : [];
   const pronouns = !compact && user.pronouns ? escapeXml(user.pronouns) : "";
-  const avatarSource = user.avatarUrl;
-  const avatar = avatarSource.replace(/&/g, "&amp;");
+  const avatar = user.avatarUrl.replace(/&/g, "&amp;");
   const twitter = !compact && user.twitter ? escapeXml(user.twitter) : "";
   const hiddenStats = new Set((opts.hide || []).map((key) => key.toLowerCase()));
   const svgTitle = `${name}'s GitHub Stats`;
