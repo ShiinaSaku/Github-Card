@@ -427,7 +427,7 @@ export async function getProfileData(
   const orgs = Array.from(new Set((opts.orgs || []).map((org) => org.trim()).filter(Boolean)))
     .map((org) => org.toLowerCase())
     .sort();
-  const cacheRaw = `${username}:${scope}:${includeLanguages ? "langs" : "nolangs"}:${langCount}:${orgs.join("|")}`;
+  const cacheRaw = `v2:${username}:${scope}:${includeLanguages ? "langs" : "nolangs"}:${langCount}:${orgs.join("|")}`;
   const cacheKey = buildCacheKey(cacheRaw);
 
   if (!forceRefresh) {
