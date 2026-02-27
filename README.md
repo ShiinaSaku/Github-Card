@@ -15,10 +15,10 @@
 
 **Beautiful GitHub stats cards for your README, site, or npm project.**
 
-[![npm](https://img.shields.io/npm/v/github-card?style=flat&colorA=0b1220&colorB=58a6ff)](https://www.npmjs.com/package/github-card)
+[![npm](https://img.shields.io/npm/v/github-card?style=flat&colorA=0b1220&colorB=58a6ff)](https://www.npmjs.com/package/@shiinasaku/github-card)
 [![Built with Bun](https://img.shields.io/badge/Bun-000?style=flat&logo=bun&logoColor=ffd700)](https://bun.sh)
 [![MIT](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-21%20passed-34d399?style=flat)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-27%20passed-34d399?style=flat)](#testing)
 
 [Live Demo](https://card.shiina.xyz/card/ShiinaSaku) &#183;
 [All Themes](https://card.shiina.xyz/ShiinaSaku/themes) &#183;
@@ -101,6 +101,8 @@ All parameters are optional query strings on `/card/:username`.
 | `theme`       | `default` | One of the 20 built-in themes        |
 | `compact`     | `false`   | Hides bio, pronouns, language labels |
 | `hide_border` | `false`   | Removes the card border              |
+| `variant`     | `classic` | `classic` or `hyper`                 |
+| `animate`     | `false`   | Enables SVG motion effects           |
 
 ### Custom Colors
 
@@ -116,12 +118,13 @@ Pass hex values **without** `#`.
 
 ### Data Filtering
 
-| Parameter    | Default    | Description                                                             |
-| :----------- | :--------- | :---------------------------------------------------------------------- |
-| `lang_count` | `5`        | Top languages shown (1--10)                                             |
-| `hide`       | --         | Comma-separated: `stars,commits,issues,repos,prs`                       |
-| `scope`      | `personal` | `personal` / `org` / `all` -- see [scope details](#what-the-card-shows) |
-| `orgs`       | --         | Comma-separated org logins to include (filters contributed-to repos)    |
+| Parameter      | Default      | Description                                                             |
+| :------------- | :----------- | :---------------------------------------------------------------------- |
+| `lang_count`   | `5`          | Top languages shown (1--10)                                             |
+| `hide`         | --           | Comma-separated: `stars,commits,issues,repos,prs`                       |
+| `scope`        | `personal`   | `personal` / `org` / `all` -- see [scope details](#what-the-card-shows) |
+| `affiliations` | `affiliated` | `affiliated` (owner + org member + collaborator) or `owner` only        |
+| `orgs`         | --           | Comma-separated org logins to include (filters contributed-to repos)    |
 
 ### Examples
 
@@ -134,6 +137,9 @@ https://card.shiina.xyz/card/ShiinaSaku?bg_color=0d1117&text_color=c9d1d9&title_
 
 # Organization stats
 https://card.shiina.xyz/card/ShiinaSaku?scope=all&orgs=oven-sh,elysiajs
+
+# Owner-only repos (disable org member/collaborator affiliations)
+https://card.shiina.xyz/card/ShiinaSaku?affiliations=owner
 
 # Hide specific stats
 https://card.shiina.xyz/card/ShiinaSaku?hide=issues,prs,stars
@@ -254,18 +260,22 @@ bun dev
 
 ## API Reference
 
-| Endpoint                | Returns                                     |
-| :---------------------- | :------------------------------------------ |
-| `GET /card/:username`   | SVG stats card                              |
-| `GET /:username/themes` | SVG grid of all themes                      |
-| `GET /health`           | JSON -- cache metrics, Redis status, uptime |
-| `GET /openapi`          | Interactive API documentation               |
+| Endpoint                   | Returns                                     |
+| :------------------------- | :------------------------------------------ |
+| `GET /card/:username`      | SVG stats card                              |
+| `GET /card/:username/next` | Hyper-visual SVG variant                    |
+| `GET /og/:username`        | PNG social preview (OG-ready)               |
+| `GET /:username/themes`    | SVG grid of all themes                      |
+| `GET /health`              | JSON -- cache metrics, Redis status, uptime |
+| `GET /openapi`             | Interactive API documentation               |
 
 ### Response Headers
 
 | Header                        | Value                                                           |
 | :---------------------------- | :-------------------------------------------------------------- |
 | `Cache-Control`               | `public, max-age=0, s-maxage=1800, stale-while-revalidate=1800` |
+| `CDN-Cache-Control`           | `public, s-maxage=1800, stale-while-revalidate=1800`            |
+| `Vercel-CDN-Cache-Control`    | `public, s-maxage=1800, stale-while-revalidate=1800`            |
 | `ETag`                        | Enables 304 Not Modified                                        |
 | `Server-Timing`               | Per-request timing telemetry                                    |
 | `Access-Control-Allow-Origin` | `*`                                                             |
@@ -289,9 +299,10 @@ bun dev
 ```
 Request -> Elysia (CORS, OpenAPI, Server-Timing)
   -> GitHub GraphQL API (parallel personal + org fetches)
-  -> L1 In-Memory Cache (30m fresh / 30m stale SWR)
-  -> L2 Upstash Redis (optional, 60m TTL)
-  -> SVG Renderer (embedded Roboto WOFF2 font)
+  -> L1 In-Memory Cache (30m fresh / 30m stale SWR, bounded size)
+  -> L2 Upstash Redis payload cache + distributed refresh lock
+  -> SVG Renderer (classic + hyper variants, embedded Roboto WOFF2 font)
+  -> Optional PNG rasterization for `/og/:username`
   -> ETag / 304 / Cache-Control
 ```
 
@@ -304,7 +315,7 @@ Request -> Elysia (CORS, OpenAPI, Server-Timing)
 | Cache L2  | Upstash Redis (serverless)                |
 | Font      | Roboto (subsetted WOFF2, base64 embedded) |
 | Deploy    | Vercel Functions                          |
-| Tests     | bun:test -- 21 tests                      |
+| Tests     | bun:test -- 27 tests                      |
 | Lint      | oxlint + oxfmt                            |
 
 ---
@@ -312,7 +323,7 @@ Request -> Elysia (CORS, OpenAPI, Server-Timing)
 ## Testing
 
 ```bash
-bun test               # 21 tests
+bun test               # 27 tests
 bun test --coverage    # with coverage
 bun run typecheck      # tsc
 bun run lint           # oxlint
@@ -322,24 +333,34 @@ bun run lint           # oxlint
 
 ## What the card shows
 
-| Stat      | Source                                 |
-| :-------- | :------------------------------------- |
-| Stars     | Total across owned repos (excl. forks) |
-| Commits   | Current calendar year                  |
-| Issues    | Open + closed                          |
-| Repos     | Owned, non-fork                        |
-| PRs       | Open + closed + merged                 |
-| Languages | Top N by code size                     |
+| Stat      | Source                                                                |
+| :-------- | :-------------------------------------------------------------------- |
+| Stars     | Total across repos selected by scope + affiliation mode (excl. forks) |
+| Commits   | Current calendar year                                                 |
+| Issues    | Open + closed                                                         |
+| Repos     | Non-fork repositories selected by scope + affiliation mode            |
+| PRs       | Open + closed + merged                                                |
+| Languages | Top N by code size                                                    |
 
 ### Scope
 
-| Value      | Stars / Repos / Languages from                       | Speed                              |
-| :--------- | :--------------------------------------------------- | :--------------------------------- |
-| `personal` | Your own repos only                                  | Single query                       |
-| `org`      | Org repos you actually contributed to (commits, PRs) | Parallel: metadata + contributions |
-| `all`      | Your repos + org repos you contributed to            | Parallel: personal + contributions |
+| Value      | Stars / Repos / Languages from                                                                   | Speed                              |
+| :--------- | :----------------------------------------------------------------------------------------------- | :--------------------------------- |
+| `personal` | Your own repos only                                                                              | Single query                       |
+| `org`      | Org repos you actually contributed to (commits, PRs, issues are org-scoped yearly contributions) | Parallel: metadata + contributions |
+| `all`      | Your repos + org repos you contributed to                                                        | Parallel: personal + contributions |
 
 Org stats use GitHub's `repositoriesContributedTo` API -- only repos you actually touched are counted, not every repo in the organization. Filter to specific orgs with `orgs=org1,org2`.
+
+### Organization Accounts
+
+`/card/:username` also supports organization logins directly (for example `/card/vercel`).  
+For organization accounts, `stars`, `repos`, and language distribution are based on org repositories. `commits`, `prs`, and `issues` are set to `0` because those are person-scoped metrics in this API.
+
+### Affiliation Modes
+
+- `affiliations=affiliated` (default): includes repos where the user is `OWNER`, `ORGANIZATION_MEMBER`, or `COLLABORATOR`.
+- `affiliations=owner`: limits stats to strictly user-owned repositories.
 
 ---
 

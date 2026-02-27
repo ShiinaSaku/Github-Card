@@ -157,6 +157,64 @@ describe("index routes", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
   });
 
+  it("renders organization login cards on /card/:username", async () => {
+    globalThis.fetch = (async (_input: Request | string | URL, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body || "{}"));
+      const query = String(payload.query || "");
+
+      if (query.includes("userInfo")) {
+        return new Response(
+          JSON.stringify({
+            errors: [{ message: "Could not resolve to a User with the login of 'acme'." }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      if (query.includes("orgInfo")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              organization: {
+                login: "acme",
+                name: "Acme Inc",
+                avatarUrl: "https://avatars.githubusercontent.com/u/2?v=4",
+                description: "Org profile",
+                twitterUsername: "acme",
+                repositories: {
+                  totalCount: 1,
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  nodes: [
+                    {
+                      nameWithOwner: "acme/core",
+                      stargazers: { totalCount: 9 },
+                      languages: {
+                        edges: [{ size: 80, node: { color: "#3178c6", name: "TypeScript" } }],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "Content-Type": "image/png" },
+      });
+    }) as unknown as typeof fetch;
+
+    const res = await app.handle(new Request("http://localhost/card/acme"));
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("image/svg+xml");
+    expect(body).toContain("Acme Inc");
+  });
+
   it("returns 401 for GitHub auth failures", async () => {
     globalThis.fetch = (async (input: Request | string | URL) => {
       const url = input.toString();
@@ -242,6 +300,114 @@ describe("index routes", () => {
 
     expect(second.status).toBe(304);
     expect(second.headers.get("etag")).toBe(etag);
+  });
+
+  it("renders hyper variant endpoint", async () => {
+    globalThis.fetch = (async (input: Request | string | URL) => {
+      const url = input.toString();
+      if (url.includes("api.github.com/graphql")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              user: {
+                login: "octocat",
+                name: "The Octocat",
+                avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
+                bio: "Hello",
+                pronouns: "they/them",
+                twitterUsername: "octo",
+                openPRs: { totalCount: 1 },
+                closedPRs: { totalCount: 2 },
+                mergedPRs: { totalCount: 3 },
+                openIssues: { totalCount: 1 },
+                closedIssues: { totalCount: 4 },
+                contributionsCollection: { totalCommitContributions: 10 },
+                repositories: {
+                  totalCount: 2,
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  nodes: [
+                    {
+                      stargazers: { totalCount: 5 },
+                      languages: {
+                        edges: [{ size: 100, node: { color: "#3178c6", name: "TypeScript" } }],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "Content-Type": "image/png" },
+      });
+    }) as unknown as typeof fetch;
+
+    const res = await app.handle(
+      new Request("http://localhost/card/octocat/next?animate=true&lang_count=3"),
+    );
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("image/svg+xml");
+    expect(body).toContain("Hyper GitHub card");
+  });
+
+  it("renders social preview PNG", async () => {
+    globalThis.fetch = (async (input: Request | string | URL) => {
+      const url = input.toString();
+      if (url.includes("api.github.com/graphql")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              user: {
+                login: "octocat",
+                name: "The Octocat",
+                avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
+                bio: "Hello",
+                pronouns: "they/them",
+                twitterUsername: "octo",
+                openPRs: { totalCount: 1 },
+                closedPRs: { totalCount: 2 },
+                mergedPRs: { totalCount: 3 },
+                openIssues: { totalCount: 1 },
+                closedIssues: { totalCount: 4 },
+                contributionsCollection: { totalCommitContributions: 10 },
+                repositories: {
+                  totalCount: 2,
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  nodes: [
+                    {
+                      stargazers: { totalCount: 5 },
+                      languages: {
+                        edges: [{ size: 100, node: { color: "#3178c6", name: "TypeScript" } }],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { "Content-Type": "image/png" },
+      });
+    }) as unknown as typeof fetch;
+
+    const res = await app.handle(new Request("http://localhost/og/octocat"));
+    const buf = await res.arrayBuffer();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("image/png");
+    expect(buf.byteLength).toBeGreaterThan(2000);
   });
 
   it("serves OpenAPI JSON documentation", async () => {

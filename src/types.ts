@@ -37,4 +37,6 @@ export interface CardOptions {
   hide_border?: boolean;
   compact?: boolean;
   hide?: string[];
+  animate?: boolean;
+  variant?: "classic" | "hyper";
 }
