@@ -1,6 +1,6 @@
 {
   "name": "@shiinasaku/github-card",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Beautiful GitHub stats SVG cards. Embed in README, use as API, or render programmatically.",
   "keywords": [
     "badge",
@@ -47,7 +47,7 @@
   },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts --target bun --outdir dist",
+    "build": "bun run fmt && bun test && tsc --noEmit && oxlint && bun build src/index.ts --target bun --outdir dist --production",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
@@ -60,14 +60,14 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/openapi": "^1.4.14",
     "@elysiajs/server-timing": "^1.4.0",
-    "@resvg/resvg-js": "^2.6.2",
-    "@upstash/redis": "^1.36.3",
-    "elysia": "^1.4.26"
+    "elysia": "^1.4.28"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.9",
+    "@tailwindcss/cli": "^4.2.2",
+    "@types/bun": "^1.3.11",
     "oxfmt": "0.41.0",
     "oxlint": "1.56.0",
+    "tailwindcss": "^4.2.2",
     "typescript": "5.9.3"
   }
 }

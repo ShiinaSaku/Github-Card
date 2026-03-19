@@ -1,38 +1,25 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended"
-  ],
+  "extends": ["config:recommended"],
   "automerge": true,
-  "schedule": [
-    "at any time"
-  ],
+  "schedule": ["at any time"],
   "packageRules": [
     {
       "description": "Group and automerge all patch updates",
-      "matchUpdateTypes": [
-        "patch"
-      ],
+      "matchUpdateTypes": ["patch"],
       "groupName": "all patch updates",
       "automerge": true
     },
     {
       "description": "Create separate PRs for major updates to key packages (Node.js, TypeScript)",
-      "matchPackageNames": [
-        "node",
-        "typescript"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
+      "matchPackageNames": ["node", "typescript"],
+      "matchUpdateTypes": ["major"],
       "enabled": true,
       "groupName": "major updates"
     },
     {
       "description": "Group minor updates together and automerge if tests pass",
-      "matchUpdateTypes": [
-        "minor"
-      ],
+      "matchUpdateTypes": ["minor"],
       "groupName": "all minor updates"
     }
   ],

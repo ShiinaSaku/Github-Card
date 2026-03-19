@@ -19,9 +19,9 @@ const baseLangs = [
 describe("renderCard", () => {
   it("renders detailed output by default", () => {
     const svg = renderCard(baseUser, baseStats, baseLangs, {});
-    expect(svg.includes('class="bio"')).toBe(true);
-    expect(svg.includes('class="tw"')).toBe(true);
-    expect(svg.includes('class="lang"')).toBe(true);
+    expect(svg.includes(baseUser.bio!)).toBe(true);
+    expect(svg.includes(baseUser.twitter!)).toBe(true);
+    expect(svg.includes(baseLangs[0]!.name)).toBe(true);
   });
 
   it("renders compact output when compact is true", () => {
@@ -45,11 +45,10 @@ describe("renderCard", () => {
     expect(svg.includes("Repos")).toBe(true);
   });
 
-  it("embeds @font-face with base64 WOFF2", () => {
+  it("uses inline system-ui font-families across the SVG", () => {
     const svg = renderCard(baseUser, baseStats, baseLangs, {});
-    expect(svg.includes("@font-face")).toBe(true);
-    expect(svg.includes("data:font/woff2;base64,")).toBe(true);
-    expect(svg.includes("'Roboto'")).toBe(true);
+    expect(svg.includes("font-family")).toBe(true);
+    expect(svg.includes("system-ui")).toBe(true);
   });
 
   it("uses auto shape-rendering for smooth curves", () => {

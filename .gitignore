@@ -5,6 +5,7 @@
 /.pnp
 .pnp.js
 .agents
+.gemini
 
 # testing
 /coverage
@@ -35,6 +36,7 @@ yarn-error.log*
 
 # vercel
 .vercel
+.agent
 
 **/*.trace
 **/*.zip

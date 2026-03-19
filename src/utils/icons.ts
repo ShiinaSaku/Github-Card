@@ -11,7 +11,8 @@ export function icon(name: keyof typeof icons, color: string, size = 16): string
   const path = icons[name];
   if (!path) return "";
   const viewBox = name === "x" ? "0 0 24 24" : "0 0 16 16";
+  const colorStr = color.startsWith("#") ? color : `#${color}`;
   const fill =
-    name === "x" ? `stroke="#${color}" stroke-width="2" fill="none"` : `fill="#${color}"`;
+    name === "x" ? `stroke="${colorStr}" stroke-width="2" fill="none"` : `fill="${colorStr}"`;
   return `<svg width="${size}" height="${size}" viewBox="${viewBox}" ${fill} role="img">${path}</svg>`;
 }
