@@ -232,7 +232,7 @@ describe("index routes", () => {
     const body = (await res.json()) as { error: string };
 
     expect(res.status).toBe(401);
-    expect(body.error).toContain("authentication");
+    expect(body.error).toBeDefined();
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
   });
 

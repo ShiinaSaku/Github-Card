@@ -50,6 +50,8 @@ Include the card instantly inside any raw markdown file, HTML page, or client co
 | `hide_border`  | boolean  | Strips the outline wrapper from the card                      |
 | `compact`      | boolean  | Shrinks the card geometry hiding extensive labels             |
 | `hide`         | string[] | Hides specific stat nodes (e.g. `hide=issues,prs`)            |
+| `hide_langs`   | string[] | Hides specific languages by name (e.g. `hide_langs=html,css`) |
+| `show_langs`   | string[] | Shows only specific languages by name (e.g. `show_langs=rust`) |
 | `lang_count`   | integer  | Adjusts the Top Language count to fetch (max 10, default 5)   |
 
 ### Premium Themes

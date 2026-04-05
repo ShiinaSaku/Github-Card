@@ -1,58 +1,19 @@
 import type { ProfileData, LanguageStat } from "./types";
 import { RedisClient } from "bun";
+import {
+  GitHubClient,
+  NotFoundError,
+  RateLimitError,
+  AuthError,
+  GitHubError as UpstreamError,
+} from "./utils/github-client";
 
-export class NotFoundError extends Error {
-  constructor(message = "User not found") {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
+export { NotFoundError, RateLimitError, AuthError, UpstreamError };
 
-export class RateLimitError extends Error {
-  constructor(message = "GitHub API rate limit exceeded") {
-    super(message);
-    this.name = "RateLimitError";
-  }
-}
-
-export class AuthError extends Error {
-  constructor(message = "GitHub authentication failed") {
-    super(message);
-    this.name = "AuthError";
-  }
-}
-
-export class UpstreamError extends Error {
-  constructor(message = "GitHub API request failed") {
-    super(message);
-    this.name = "UpstreamError";
-  }
-}
-
-function classifyError(message: string, status?: number): Error {
-  const lower = message.toLowerCase();
-  if (status === 404 || lower.includes("not resolve to a user") || lower.includes("not found"))
-    return new NotFoundError();
-  if (status === 429 || status === 403 || lower.includes("rate limit") || lower.includes("abuse"))
-    return new RateLimitError();
-  if (
-    status === 401 ||
-    lower.includes("bad credentials") ||
-    lower.includes("requires authentication")
-  )
-    return new AuthError();
-  return new UpstreamError(message || `GitHub API error (${status || 500})`);
-}
-
-function getHeaders() {
-  const token = Bun.env.GITHUB_TOKEN;
-  if (!token) throw new AuthError("GITHUB_TOKEN is missing");
-  return {
-    Authorization: `bearer ${token}`,
-    "Content-Type": "application/json",
-    "User-Agent": "github-card",
-  };
-}
+const githubClient = new GitHubClient({
+  token: Bun.env.GITHUB_TOKEN || process.env?.GITHUB_TOKEN || "",
+  userAgent: "github-card",
+});
 
 const CACHE_FRESH_MS = 30 * 60 * 1000;
 const CACHE_STALE_MS = 30 * 60 * 1000;
@@ -132,8 +93,8 @@ query fullProfile($login: String!, $from: DateTime!, $to: DateTime!, $isPersonal
     mergedPRs: pullRequests(states: MERGED) { totalCount }
     openIssues: issues(states: OPEN) { totalCount }
     closedIssues: issues(states: CLOSED) { totalCount }
-    contributionsCollection(from: $from, to: $to) { 
-      totalCommitContributions 
+    contributionsCollection(from: $from, to: $to) {
+      totalCommitContributions
       commitContributionsByRepository(maxRepositories: 100) @include(if: $isOrg) { repository { owner { login __typename } } contributions(first:1) { totalCount } }
       pullRequestContributionsByRepository(maxRepositories: 100) @include(if: $isOrg) { repository { owner { login __typename } } contributions(first:1) { totalCount } }
       issueContributionsByRepository(maxRepositories: 100) @include(if: $isOrg) { repository { owner { login __typename } } contributions(first:1) { totalCount } }
@@ -196,24 +157,10 @@ query paginateOrg($login: String!, $cursor: String, $fetchLangs: Boolean!) {
 `;
 
 async function postGraphQL(query: string, variables: Record<string, unknown>) {
-  let res: Response;
-  try {
-    res = await fetch("https://api.github.com/graphql", {
-      method: "POST",
-      headers: getHeaders(),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      body: JSON.stringify({ query, variables }),
-    });
-  } catch (error: any) {
-    if (error.name === "TimeoutError" || error.name === "AbortError")
-      throw new UpstreamError("GitHub API timeout");
-    throw new UpstreamError("GitHub API failed");
-  }
-  if (!res.ok) throw classifyError(await res.text(), res.status);
-  const body = (await res.json()) as any;
-  if (body.errors?.length) throw classifyError(body.errors[0].message);
-  if (!body.data) throw new UpstreamError("No data");
-  return body.data;
+  return githubClient.request(query, {
+    variables,
+    timeoutMs: FETCH_TIMEOUT_MS,
+  });
 }
 
 type LangMap = Map<string, { size: number; color: string }>;
@@ -232,7 +179,9 @@ async function fetchAvatarAsBase64(url: string | null | undefined): Promise<stri
   try {
     const target = new URL(url);
     target.searchParams.set("s", "150");
-    const res = await fetch(target.toString(), { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(target.toString(), {
+      signal: AbortSignal.timeout(4000),
+    });
     if (!res.ok) return url;
     const buf = await res.arrayBuffer();
     return `data:${res.headers.get("content-type") || "image/png"};base64,${Buffer.from(buf).toString("base64")}`;
@@ -282,7 +231,10 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
     if (!user) throw new NotFoundError();
   } catch (err) {
     if (err instanceof NotFoundError) {
-      const data = await postGraphQL(QUERY_ORG, { login: username, fetchLangs });
+      const data = await postGraphQL(QUERY_ORG, {
+        login: username,
+        fetchLangs,
+      });
       user = data.organization;
       if (!user) throw new NotFoundError();
       isOrgAccount = true;
@@ -316,7 +268,12 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
     for (const n of connection?.nodes || []) processNode(n, scopeCheck);
 
     while (hasNext && cursor && page++ < MAX_PAGES) {
-      const data = await postGraphQL(query, { login: username, cursor, fetchLangs, affiliations });
+      const data = await postGraphQL(query, {
+        login: username,
+        cursor,
+        fetchLangs,
+        affiliations,
+      });
       const nextConn = data.user
         ? query.includes("repositoriesContributedTo")
           ? data.user.repositoriesContributedTo

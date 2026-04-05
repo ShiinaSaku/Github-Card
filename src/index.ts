@@ -31,6 +31,8 @@ const CardQuerySchema = t.Object({
   animate: t.Optional(t.BooleanString()),
   fields: t.Optional(t.ArrayQuery(t.String())),
   hide: t.Optional(t.ArrayQuery(t.String())),
+  hide_langs: t.Optional(t.ArrayQuery(t.String())),
+  show_langs: t.Optional(t.ArrayQuery(t.String())),
   lang_count: t.Optional(t.Integer({ minimum: 1, maximum: 10 })),
   scope: t.Optional(t.Union([t.Literal("personal"), t.Literal("org"), t.Literal("all")])),
   affiliations: t.Optional(t.Union([t.Literal("owner"), t.Literal("affiliated")])),
@@ -89,6 +91,8 @@ function buildCardOptions(query: CardQuery, hide: string[]): CardOpts {
     hide_border: query.hide_border ?? false,
     compact: query.compact ?? false,
     hide,
+    hide_langs: query.hide_langs,
+    show_langs: query.show_langs,
     animate: query.animate ?? false,
   };
 }
