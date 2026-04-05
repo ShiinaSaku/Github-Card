@@ -25,7 +25,6 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "forceConsistentCasingInFileNames": true,
-    "downlevelIteration": true,
 
     // Bun types
     "types": ["bun-types"],

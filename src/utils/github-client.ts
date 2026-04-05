@@ -137,9 +137,9 @@ export class GitHubClient {
         : undefined;
 
     // Link user-provided signal if present
+    const onAbort = userSignal ? () => abortController.abort(userSignal.reason) : undefined;
     if (userSignal) {
-      const onAbort = () => abortController.abort(userSignal.reason);
-      userSignal.addEventListener("abort", onAbort);
+      userSignal.addEventListener("abort", onAbort!);
       if (userSignal.aborted) abortController.abort(userSignal.reason);
     }
 
@@ -160,8 +160,9 @@ export class GitHubClient {
       throw new GitHubError(`Network error: ${error.message || "Unknown error"}`);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
+    const onAbort = userSignal ? () => abortController.abort(userSignal.reason) : undefined;
       if (userSignal) {
-        userSignal.removeEventListener("abort", onAbort);
+        userSignal.removeEventListener("abort", onAbort!);
       }
     }
 
