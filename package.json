@@ -64,8 +64,8 @@
   "devDependencies": {
     "@tailwindcss/cli": "^4.2.2",
     "@types/bun": "^1.3.11",
-    "oxfmt": "0.44.0",
-    "oxlint": "1.59.0",
+    "oxfmt": "0.45.0",
+    "oxlint": "1.60.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^6"
   },
