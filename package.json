@@ -1,6 +1,6 @@
 {
   "name": "@shiinasaku/github-card",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Beautiful GitHub stats SVG cards. Embed in README, use as API, or render programmatically.",
   "keywords": [
     "badge",
