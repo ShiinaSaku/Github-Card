@@ -28,7 +28,7 @@ describe("getProfileData", () => {
 
   it("fetches profile data and caches it", async () => {
     const calls: string[] = [];
-    globalThis.fetch = (async (input: any, init: any) => {
+    globalThis.fetch = (async (input: any, _init: any) => {
       calls.push(input.toString());
       if (input.toString().includes("graphql")) {
         return new Response(
@@ -74,7 +74,7 @@ describe("getProfileData", () => {
   });
 
   it("supports organization scope and org filtering", async () => {
-    globalThis.fetch = (async (input: any, init: any) => {
+    globalThis.fetch = (async (_input: any, _init: any) => {
       return new Response(
         JSON.stringify({
           data: {
@@ -179,7 +179,7 @@ describe("getProfileData", () => {
 
   it("supports owner-only or affiliated repository modes", async () => {
     const queries: string[] = [];
-    globalThis.fetch = (async (input: any, init: any) => {
+    globalThis.fetch = (async (_input: any, init: any) => {
       const payload = JSON.parse(String(init?.body || "{}"));
       if (payload.variables) queries.push(JSON.stringify(payload.variables));
 
@@ -208,6 +208,70 @@ describe("getProfileData", () => {
       true,
     );
     expect(queries.some((q) => !q.includes("ORGANIZATION_MEMBER"))).toBe(true);
+  });
+
+  it("does not mutate organization filters while building cache keys", async () => {
+    globalThis.fetch = (async (input: any, init: any) => {
+      const payload = JSON.parse(String(init?.body || "{}"));
+      if (payload.query.includes("fullProfile")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              user: {
+                ...mockBaseUser,
+                contributionsCollection: { totalCommitContributions: 10 },
+                repositoriesContributedTo: {
+                  pageInfo: { hasNextPage: false },
+                  nodes: [
+                    {
+                      nameWithOwner: "zeta/app",
+                      owner: { login: "zeta", __typename: "Organization" },
+                      stargazers: { totalCount: 1 },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response(new Uint8Array([1]), { headers: { "content-type": "image/png" } });
+    }) as any;
+
+    const mod = await import("../src/github");
+    const orgs = ["zeta", "alpha"];
+    await mod.getProfileData("octocat", { scope: "org", orgs, forceRefresh: true });
+
+    expect(orgs).toEqual(["zeta", "alpha"]);
+  });
+
+  it("keeps remote avatar URLs when the avatar response is not an image", async () => {
+    globalThis.fetch = (async (input: any, _init: any) => {
+      if (String(input).includes("graphql")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              user: {
+                ...mockBaseUser,
+                contributionsCollection: { totalCommitContributions: 10 },
+                repositories: {
+                  pageInfo: { hasNextPage: false },
+                  nodes: [{ nameWithOwner: "octocat/hello-world", stargazers: { totalCount: 5 } }],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response("<html></html>", { headers: { "content-type": "text/html" } });
+    }) as any;
+
+    const mod = await import("../src/github");
+    const profile = await mod.getProfileData("octocat", { forceRefresh: true });
+
+    expect(profile.user.avatarUrl).toBe(mockBaseUser.avatarUrl);
   });
 
   it("supports organization profile cards via the same API", async () => {

@@ -1,4 +1,4 @@
-import type { ProfileData, LanguageStat } from "./types";
+import type { ProfileData } from "./types";
 import { RedisClient } from "bun";
 import {
   GitHubClient,
@@ -17,7 +17,11 @@ const githubClient = new GitHubClient({
 
 const CACHE_FRESH_MS = 30 * 60 * 1000;
 const CACHE_STALE_MS = 30 * 60 * 1000;
+const CACHE_VERSION = 7;
+const REDIS_TTL_SECONDS = Math.ceil((CACHE_FRESH_MS + CACHE_STALE_MS) / 1000);
 const FETCH_TIMEOUT_MS = 6000;
+const AVATAR_TIMEOUT_MS = 4000;
+const MAX_AVATAR_BYTES = 256 * 1024;
 const MAX_PAGES = 10;
 const MAX_L1_ENTRIES = 1000;
 const REDIS_PROFILE_PREFIX = "profile:";
@@ -49,6 +53,58 @@ type CachedData = {
 
 const memCache = new Map<string, CachedData>();
 const inFlight = new Map<string, Promise<ProfileData>>();
+const refreshInFlight = new Set<string>();
+
+function evictL1IfNeeded() {
+  if (memCache.size <= MAX_L1_ENTRIES) return;
+  const oldestKey = memCache.keys().next().value as string | undefined;
+  if (oldestKey) memCache.delete(oldestKey);
+}
+
+function setMemoryCache(cacheKey: string, payload: CachedData) {
+  memCache.set(cacheKey, payload);
+  evictL1IfNeeded();
+}
+
+async function writeRedisCache(cacheKey: string, payload: CachedData) {
+  if (!redisClient) return;
+  try {
+    await redisClient.set(
+      `${REDIS_PROFILE_PREFIX}${cacheKey}`,
+      JSON.stringify(payload),
+      "EX",
+      REDIS_TTL_SECONDS,
+    );
+  } catch {}
+}
+
+async function readRedisCache(cacheKey: string, now: number): Promise<CachedData | null> {
+  if (!redisClient) return null;
+  try {
+    const raw = await redisClient.get(`${REDIS_PROFILE_PREFIX}${cacheKey}`);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as CachedData;
+    if (parsed.v !== CACHE_VERSION || parsed.expiresAt <= now || !parsed.data) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function saveProfileCache(cacheKey: string, data: ProfileData): Promise<ProfileData> {
+  const now = Date.now();
+  const payload: CachedData = {
+    v: CACHE_VERSION,
+    staleAt: now + CACHE_FRESH_MS,
+    expiresAt: now + CACHE_FRESH_MS + CACHE_STALE_MS,
+    data,
+  };
+
+  setMemoryCache(cacheKey, payload);
+  await writeRedisCache(cacheKey, payload);
+  return data;
+}
 
 export function getCacheMetrics() {
   let fresh = 0;
@@ -73,6 +129,10 @@ export function getCacheMetrics() {
 
 function normalizeUsername(username: string): string {
   return username.trim().toLowerCase();
+}
+
+function normalizeOrgFilters(orgs?: string[]): string[] {
+  return Array.from(new Set((orgs || []).map((o) => o.trim().toLowerCase()).filter(Boolean)));
 }
 
 type FetchOptions = {
@@ -180,11 +240,16 @@ async function fetchAvatarAsBase64(url: string | null | undefined): Promise<stri
     const target = new URL(url);
     target.searchParams.set("s", "150");
     const res = await fetch(target.toString(), {
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(AVATAR_TIMEOUT_MS),
     });
     if (!res.ok) return url;
+    const contentType = res.headers.get("content-type") || "image/png";
+    if (!contentType.toLowerCase().startsWith("image/")) return url;
+    const contentLength = Number(res.headers.get("content-length") || 0);
+    if (contentLength > MAX_AVATAR_BYTES) return url;
     const buf = await res.arrayBuffer();
-    return `data:${res.headers.get("content-type") || "image/png"};base64,${Buffer.from(buf).toString("base64")}`;
+    if (buf.byteLength > MAX_AVATAR_BYTES) return url;
+    return `data:${contentType};base64,${Buffer.from(buf).toString("base64")}`;
   } catch {
     return url;
   }
@@ -205,9 +270,8 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
   const isPersonal = opts.scope !== "org";
   const isOrg = opts.scope === "org" || opts.scope === "all";
   const fetchLangs = opts.includeLanguages ?? true;
-  const orgsArr = opts.orgs || [];
-  const orgsSet =
-    orgsArr.length > 0 ? new Set(orgsArr.map((o) => o.trim().toLowerCase()).filter(Boolean)) : null;
+  const orgsArr = normalizeOrgFilters(opts.orgs);
+  const orgsSet = orgsArr.length > 0 ? new Set(orgsArr) : null;
   const affiliations =
     opts.affiliations === "owner" ? ["OWNER"] : ["OWNER", "ORGANIZATION_MEMBER", "COLLABORATOR"];
 
@@ -340,65 +404,35 @@ export async function getProfileData(
   opts: FetchOptions = {},
 ): Promise<ProfileData> {
   const norm = normalizeUsername(username);
+  const orgs = normalizeOrgFilters(opts.orgs);
   const cacheKey = Bun.hash(
-    `v6:${norm}:${opts.scope || "personal"}:${opts.affiliations || "affiliated"}:${opts.includeLanguages !== false}:${opts.langCount || 5}:${(opts.orgs || []).sort().join("|")}`,
+    `v${CACHE_VERSION}:${norm}:${opts.scope || "personal"}:${opts.affiliations || "affiliated"}:${opts.includeLanguages !== false}:${opts.langCount || 5}:${orgs.join("|")}`,
   ).toString(36);
 
   if (!opts.forceRefresh) {
     const mem = memCache.get(cacheKey);
     const now = Date.now();
     if (mem && mem.expiresAt > now) {
-      if (mem.staleAt <= now && !inFlight.has(cacheKey))
+      if (mem.staleAt <= now && !refreshInFlight.has(cacheKey))
         triggerBackgroundRefresh(username, opts, cacheKey);
       return mem.data;
     }
 
-    if (redisClient) {
-      try {
-        const raw = await redisClient.get(`${REDIS_PROFILE_PREFIX}${cacheKey}`);
-        if (raw) {
-          const parsed = JSON.parse(raw) as CachedData;
-          if (parsed.expiresAt > now) {
-            memCache.set(cacheKey, parsed);
-            if (memCache.size > MAX_L1_ENTRIES)
-              memCache.delete(memCache.keys().next().value as string);
-            if (parsed.staleAt <= now && !inFlight.has(cacheKey))
-              triggerBackgroundRefresh(username, opts, cacheKey);
-            return parsed.data;
-          }
-        }
-      } catch {}
+    const cached = await readRedisCache(cacheKey, now);
+    if (cached) {
+      setMemoryCache(cacheKey, cached);
+      if (cached.staleAt <= now && !refreshInFlight.has(cacheKey))
+        triggerBackgroundRefresh(username, opts, cacheKey);
+      return cached.data;
     }
   }
 
   if (inFlight.has(cacheKey)) return inFlight.get(cacheKey)!;
 
   const promise = directFetch(username, opts)
-    .then(async (data) => {
-      const payload: CachedData = {
-        v: 6,
-        staleAt: Date.now() + CACHE_FRESH_MS,
-        expiresAt: Date.now() + CACHE_FRESH_MS + CACHE_STALE_MS,
-        data,
-      };
-      memCache.set(cacheKey, payload);
-      if (memCache.size > MAX_L1_ENTRIES) memCache.delete(memCache.keys().next().value as string);
-      if (redisClient) {
-        try {
-          await redisClient.set(
-            `${REDIS_PROFILE_PREFIX}${cacheKey}`,
-            JSON.stringify(payload),
-            "EX",
-            3600,
-          );
-        } catch {}
-      }
+    .then((data) => saveProfileCache(cacheKey, data))
+    .finally(() => {
       inFlight.delete(cacheKey);
-      return data;
-    })
-    .catch((err) => {
-      inFlight.delete(cacheKey);
-      throw err;
     });
 
   inFlight.set(cacheKey, promise);
@@ -406,30 +440,13 @@ export async function getProfileData(
 }
 
 function triggerBackgroundRefresh(username: string, opts: FetchOptions, cacheKey: string) {
-  const promise = directFetch(username, { ...opts, forceRefresh: true })
-    .then(async (data) => {
-      const payload: CachedData = {
-        v: 6,
-        staleAt: Date.now() + CACHE_FRESH_MS,
-        expiresAt: Date.now() + CACHE_FRESH_MS + CACHE_STALE_MS,
-        data,
-      };
-      memCache.set(cacheKey, payload);
-      if (redisClient) {
-        try {
-          await redisClient.set(
-            `${REDIS_PROFILE_PREFIX}${cacheKey}`,
-            JSON.stringify(payload),
-            "EX",
-            3600,
-          );
-        } catch {}
-      }
-      inFlight.delete(cacheKey);
-      return data;
-    })
-    .catch(() => {
-      inFlight.delete(cacheKey);
+  if (refreshInFlight.has(cacheKey)) return;
+  refreshInFlight.add(cacheKey);
+
+  void directFetch(username, { ...opts, forceRefresh: true })
+    .then((data) => saveProfileCache(cacheKey, data))
+    .catch(() => {})
+    .finally(() => {
+      refreshInFlight.delete(cacheKey);
     });
-  inFlight.set(cacheKey, promise as Promise<ProfileData>);
 }

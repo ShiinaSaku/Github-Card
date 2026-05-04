@@ -134,6 +134,22 @@ describe("renderCard", () => {
     expect(svg.includes("#3178c6")).toBe(false);
   });
 
+  it("groups tiny language bar segments instead of leaving a visual gap", () => {
+    const svg = renderCard(
+      baseUser,
+      baseStats,
+      [
+        { name: "TypeScript", size: 10_000, color: "#3178c6" },
+        { name: "TinyScript", size: 1, color: "#abcdef" },
+      ],
+      {},
+    );
+
+    expect(svg.includes("#abcdef")).toBe(false);
+    expect(svg.includes("<title>Other 0.0%</title>")).toBe(true);
+    expect(svg.includes('fill="#6b7280"')).toBe(true);
+  });
+
   it("renders gracefully when there are no stats visible", () => {
     const svg = renderCard(baseUser, baseStats, baseLangs, {
       hide: ["stars", "commits", "issues", "repos", "prs"],

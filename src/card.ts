@@ -32,6 +32,12 @@ const STAT_DEFS = [
   { key: "prs", iconName: "pr" as const, label: "PRs" },
 ] as const;
 
+type LangVisual = {
+  name: string;
+  color: string;
+  size: number;
+};
+
 /* ── helpers ───────────────────────────────────────────────── */
 
 function raw(token: string): string {
@@ -41,6 +47,32 @@ function raw(token: string): string {
 
 function clamp(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n - 1).trimEnd() + "\u2026";
+}
+
+function buildLanguageSegments(
+  langs: LanguageStat[],
+  totalSize: number,
+  contentW: number,
+): LangVisual[] {
+  const minSegmentW = 6;
+  const visible: LangVisual[] = [];
+  let tinySize = 0;
+
+  for (const lang of langs) {
+    const segmentW = (lang.size / totalSize) * contentW;
+    if (segmentW < minSegmentW) {
+      tinySize += lang.size;
+      continue;
+    }
+
+    visible.push(lang);
+  }
+
+  if (tinySize > 0) {
+    visible.push({ name: "Other", color: "#6b7280", size: tinySize });
+  }
+
+  return visible.length > 0 ? visible : langs;
 }
 
 /* ── renderer ──────────────────────────────────────────────── */
@@ -129,12 +161,13 @@ export function renderCard(
   /* ── languages section ────────────────────────────────────── */
   const totalSize = activeLangsList.reduce((s, l) => s + l.size, 0) || 1;
   const sorted = [...activeLangsList].sort((a, b) => b.size - a.size);
+  const visualLangs = buildLanguageSegments(sorted, totalSize, contentW);
   const barY = statsY + statsH + (statsH ? 16 : 12);
   const barH = 8;
 
   const maxLegend = compact ? 0 : 6;
-  const legendLangs = sorted.slice(0, maxLegend);
-  const otherSize = sorted.slice(maxLegend).reduce((s, l) => s + l.size, 0);
+  const legendLangs = visualLangs.slice(0, maxLegend);
+  const otherSize = visualLangs.slice(maxLegend).reduce((s, l) => s + l.size, 0);
 
   const legendY = barY + barH + 12;
   const legendRowH = 16;
@@ -146,11 +179,19 @@ export function renderCard(
     pct: ((l.size / totalSize) * 100).toFixed(1),
   }));
   if (otherSize > 0 && legendItems.length > 0) {
-    legendItems.push({
-      name: "Other",
-      color: "#6b7280",
-      pct: ((otherSize / totalSize) * 100).toFixed(1),
-    });
+    const existingOther = legendItems.find((item) => item.name === "Other");
+    if (existingOther) {
+      existingOther.pct = (
+        (((Number(existingOther.pct) / 100) * totalSize + otherSize) / totalSize) *
+        100
+      ).toFixed(1);
+    } else {
+      legendItems.push({
+        name: "Other",
+        color: "#6b7280",
+        pct: ((otherSize / totalSize) * 100).toFixed(1),
+      });
+    }
   }
   const legendRows = compact ? 0 : Math.ceil(legendItems.length / legendCols);
 
@@ -178,7 +219,17 @@ export function renderCard(
 
   // accessibility
   parts.push('<title id="cardTitle">' + escapeXml(displayName + "'s GitHub Stats") + "</title>");
-  parts.push('<desc id="cardDesc">GitHub profile card for ' + escapeXml(displayName) + "</desc>");
+  parts.push(
+    '<desc id="cardDesc">GitHub profile card for ' +
+      escapeXml(displayName) +
+      " with " +
+      kFormat(stats.stars) +
+      " stars, " +
+      kFormat(stats.commits) +
+      " commits, and " +
+      activeLangsList.length +
+      " highlighted languages.</desc>",
+  );
 
   // ── <style> block ──────────────────────────────────────────
   const cssLines: string[] = [];
@@ -198,7 +249,7 @@ export function renderCard(
   cssLines.push(
     ".stat-label { font-size: 9px; font-weight: 600; fill: " +
       textColor +
-      "; opacity: 0.45; letter-spacing: 0.5px; }",
+      "; opacity: 0.48; letter-spacing: 0; }",
   );
   cssLines.push(".stat-value { font-size: 14px; font-weight: 700; fill: " + textColor + "; }");
   cssLines.push(
@@ -227,11 +278,43 @@ export function renderCard(
     '<radialGradient id="gl" cx="12%" cy="15%" r="65%">' +
       '<stop offset="0%" stop-color="' +
       iconColor +
-      '" stop-opacity="0.12"/>' +
+      '" stop-opacity="0.06"/>' +
       '<stop offset="100%" stop-color="' +
       iconColor +
       '" stop-opacity="0"/>' +
       "</radialGradient>",
+  );
+  parts.push(
+    '<linearGradient id="card-bg" x1="0" y1="0" x2="' +
+      W +
+      '" y2="' +
+      H +
+      '" gradientUnits="userSpaceOnUse">' +
+      '<stop offset="0%" stop-color="' +
+      bgColor +
+      '"/>' +
+      '<stop offset="68%" stop-color="' +
+      bgColor +
+      '"/>' +
+      '<stop offset="100%" stop-color="' +
+      titleColor +
+      '" stop-opacity="0.08"/>' +
+      "</linearGradient>",
+  );
+  parts.push(
+    '<linearGradient id="rim" x1="0" y1="0" x2="' +
+      W +
+      '" y2="0" gradientUnits="userSpaceOnUse">' +
+      '<stop offset="0%" stop-color="' +
+      iconColor +
+      '" stop-opacity="0"/>' +
+      '<stop offset="45%" stop-color="' +
+      iconColor +
+      '" stop-opacity="0.28"/>' +
+      '<stop offset="100%" stop-color="' +
+      iconColor +
+      '" stop-opacity="0"/>' +
+      "</linearGradient>",
   );
   parts.push("</defs>");
 
@@ -239,14 +322,27 @@ export function renderCard(
   parts.push(
     '<rect x="0.5" y="0.5" width="' +
       (W - 1) +
-      '" height="99%" rx="4.5" fill="' +
-      bgColor +
+      '" height="' +
+      (H - 1) +
+      '" rx="6" fill="' +
+      "url(#card-bg)" +
       '" stroke-opacity="1"/>',
   );
 
   // glow overlay
   parts.push(
-    '<rect x="0.5" y="0.5" width="' + (W - 1) + '" height="99%" rx="4.5" fill="url(#gl)"/>',
+    '<rect x="0.5" y="0.5" width="' +
+      (W - 1) +
+      '" height="' +
+      (H - 1) +
+      '" rx="6" fill="url(#gl)"/>',
+  );
+  parts.push(
+    '<line x1="' +
+      PX +
+      '" y1="1.5" x2="' +
+      (W - PX) +
+      '" y2="1.5" stroke="url(#rim)" stroke-width="1"/>',
   );
 
   // border
@@ -256,7 +352,7 @@ export function renderCard(
         (W - 1) +
         '" height="' +
         (H - 1) +
-        '" rx="4.5" fill="none" stroke="' +
+        '" rx="6" fill="none" stroke="' +
         borderColor +
         '" stroke-opacity="0.5"/>',
     );
@@ -265,6 +361,15 @@ export function renderCard(
   // ── avatar ─────────────────────────────────────────────────
   parts.push(
     '<g transform="translate(0,0)">' +
+      '<circle cx="' +
+      (PX + avatarR + 1) +
+      '" cy="' +
+      (PY + avatarR + 1) +
+      '" r="' +
+      (avatarR + 3) +
+      '" fill="' +
+      titleColor +
+      '" opacity="0.08"/>' +
       '<image href="' +
       avatar +
       '" x="' +
@@ -330,7 +435,6 @@ export function renderCard(
 
   // ── stats row ──────────────────────────────────────────────
   if (visible.length > 0) {
-    // subtle background tint anchoring the stats row
     parts.push(
       '<rect x="' +
         PX +
@@ -342,7 +446,7 @@ export function renderCard(
         (statsH + 8) +
         '" rx="6" fill="' +
         textColor +
-        '" opacity="0.04"/>',
+        '" opacity="0.035"/>',
     );
 
     parts.push('<g transform="translate(0,0)">');
@@ -351,10 +455,25 @@ export function renderCard(
       const d = visible[i]!;
       const val = stats[d.key as keyof UserStats];
       const cx = PX + statW * i + statW / 2;
+      const cellX = PX + statW * i + 4;
       const iy = statsY + 2;
 
       const staggerStyle = animate ? ' style="animation-delay: ' + (i + 3) * 150 + 'ms"' : "";
       const staggerClass = animate ? " stagger" : "";
+
+      parts.push(
+        '<rect x="' +
+          cellX +
+          '" y="' +
+          (statsY - 4) +
+          '" width="' +
+          Math.max(0, statW - 8) +
+          '" height="' +
+          (statsH - 2) +
+          '" rx="5" fill="' +
+          textColor +
+          '" opacity="0.028"/>',
+      );
 
       // each stat wrapped in its own <g>
       parts.push(
@@ -370,7 +489,13 @@ export function renderCard(
       );
 
       // icon centered
-      parts.push('<g transform="translate(-8,0)">' + icon(d.iconName, iconColor, 16) + "</g>");
+      parts.push(
+        '<circle cx="0" cy="8" r="12" fill="' +
+          iconColor +
+          '" opacity="0.1"/><g transform="translate(-8,0)">' +
+          icon(d.iconName, iconColor, 16) +
+          "</g>",
+      );
 
       // value
       parts.push(
@@ -441,14 +566,12 @@ export function renderCard(
 
     parts.push('<g clip-path="url(#lang-clip)">');
 
-    // segments – filter out those < 6px
-    const minSeg = 6;
-    const activeLangs = sorted.filter((l) => (l.size / totalSize) * contentW >= minSeg);
+    const activeLangs = visualLangs;
     let off = 0;
     for (let i = 0; i < activeLangs.length; i++) {
       const lang = activeLangs[i]!;
       const pct = ((lang.size / totalSize) * 100).toFixed(1);
-      let w = (lang.size / totalSize) * contentW;
+      let w = i === activeLangs.length - 1 ? contentW - off : (lang.size / totalSize) * contentW;
       if (w < 0) w = 0;
       const x = PX + off;
 

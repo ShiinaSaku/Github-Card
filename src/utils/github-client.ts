@@ -160,7 +160,6 @@ export class GitHubClient {
       throw new GitHubError(`Network error: ${error.message || "Unknown error"}`);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
-    const onAbort = userSignal ? () => abortController.abort(userSignal.reason) : undefined;
       if (userSignal) {
         userSignal.removeEventListener("abort", onAbort!);
       }
