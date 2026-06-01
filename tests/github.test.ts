@@ -210,6 +210,58 @@ describe("getProfileData", () => {
     expect(queries.some((q) => !q.includes("ORGANIZATION_MEMBER"))).toBe(true);
   });
 
+  it("keeps repository connections out of the initial profile request", async () => {
+    const payloads: any[] = [];
+    globalThis.fetch = (async (input: any, init: any) => {
+      if (!String(input).includes("graphql")) {
+        return new Response(new Uint8Array([1]), { headers: { "content-type": "image/png" } });
+      }
+
+      const payload = JSON.parse(String(init?.body || "{}"));
+      payloads.push(payload);
+
+      if (payload.query.includes("fullProfile")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              user: {
+                ...mockBaseUser,
+                contributionsCollection: { totalCommitContributions: 10 },
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            user: {
+              repositories: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: [{ nameWithOwner: "octocat/hello-world", stargazers: { totalCount: 5 } }],
+              },
+            },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as any;
+
+    const mod = await import("../src/github");
+    const profile = await mod.getProfileData("octocat", { forceRefresh: true });
+
+    const fullProfile = payloads.find((payload) => payload.query.includes("fullProfile"));
+    const paginateRepos = payloads.find((payload) => payload.query.includes("paginateRepos"));
+
+    expect(profile.stats.repos).toBe(1);
+    expect(fullProfile.query).not.toContain("repositories(");
+    expect(fullProfile.query).not.toContain("repositoriesContributedTo(");
+    expect(paginateRepos.variables.pageSize).toBe(50);
+    expect(paginateRepos.variables.cursor).toBeNull();
+  });
+
   it("does not mutate organization filters while building cache keys", async () => {
     globalThis.fetch = (async (input: any, init: any) => {
       const payload = JSON.parse(String(init?.body || "{}"));
@@ -220,6 +272,17 @@ describe("getProfileData", () => {
               user: {
                 ...mockBaseUser,
                 contributionsCollection: { totalCommitContributions: 10 },
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (payload.query.includes("paginateOrgContribs")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              user: {
                 repositoriesContributedTo: {
                   pageInfo: { hasNextPage: false },
                   nodes: [
@@ -293,6 +356,17 @@ describe("getProfileData", () => {
                 avatarUrl: "https://avatars",
                 description: "Org profile",
                 twitterUsername: "acme",
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (payload.query.includes("paginateOrg")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              organization: {
                 repositories: {
                   pageInfo: { hasNextPage: false },
                   nodes: [
@@ -349,6 +423,17 @@ describe("getProfileData", () => {
                 avatarUrl: "https://avatars",
                 description: "Org profile",
                 twitterUsername: "acme",
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (payload.query.includes("paginateOrg")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              organization: {
                 repositories: {
                   pageInfo: { hasNextPage: false },
                   nodes: [{ nameWithOwner: "acme/core", stargazers: { totalCount: 9 } }],

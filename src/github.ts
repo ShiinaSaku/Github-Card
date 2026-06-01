@@ -23,6 +23,7 @@ const FETCH_TIMEOUT_MS = 6000;
 const AVATAR_TIMEOUT_MS = 4000;
 const MAX_AVATAR_BYTES = 256 * 1024;
 const MAX_PAGES = 10;
+const REPO_PAGE_SIZE = 50;
 const MAX_L1_ENTRIES = 1000;
 const REDIS_PROFILE_PREFIX = "profile:";
 
@@ -145,7 +146,7 @@ type FetchOptions = {
 };
 
 const QUERY_PROFILE = `
-query fullProfile($login: String!, $from: DateTime!, $to: DateTime!, $isPersonal: Boolean!, $isOrg: Boolean!, $fetchLangs: Boolean!, $affiliations: [RepositoryAffiliation!]) {
+query fullProfile($login: String!, $from: DateTime!, $to: DateTime!, $isOrg: Boolean!) {
   user(login: $login) {
     login name avatarUrl bio pronouns twitterUsername
     openPRs: pullRequests(states: OPEN) { totalCount }
@@ -159,34 +160,22 @@ query fullProfile($login: String!, $from: DateTime!, $to: DateTime!, $isPersonal
       pullRequestContributionsByRepository(maxRepositories: 100) @include(if: $isOrg) { repository { owner { login __typename } } contributions(first:1) { totalCount } }
       issueContributionsByRepository(maxRepositories: 100) @include(if: $isOrg) { repository { owner { login __typename } } contributions(first:1) { totalCount } }
     }
-    repositories(first: 100, ownerAffiliations: $affiliations, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}) @include(if: $isPersonal) {
-      pageInfo { hasNextPage endCursor }
-      nodes { nameWithOwner stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
-    }
-    repositoriesContributedTo(first: 100, contributionTypes: [COMMIT, PULL_REQUEST, REPOSITORY], includeUserRepositories: false) @include(if: $isOrg) {
-      pageInfo { hasNextPage endCursor }
-      nodes { nameWithOwner owner { login __typename } stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
-    }
   }
 }
 `;
 
 const QUERY_ORG = `
-query fullOrg($login: String!, $fetchLangs: Boolean!) {
+query fullOrg($login: String!) {
   organization(login: $login) {
     login name avatarUrl description twitterUsername
-    repositories(first: 100, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}) {
-      pageInfo { hasNextPage endCursor }
-      nodes { nameWithOwner stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
-    }
   }
 }
 `;
 
 const QUERY_PAGINATE_USER_REPOS = `
-query paginateRepos($login: String!, $cursor: String, $affiliations: [RepositoryAffiliation!], $fetchLangs: Boolean!) {
+query paginateRepos($login: String!, $cursor: String, $pageSize: Int!, $affiliations: [RepositoryAffiliation!], $fetchLangs: Boolean!) {
   user(login: $login) {
-    repositories(first: 100, after: $cursor, ownerAffiliations: $affiliations, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}) {
+    repositories(first: $pageSize, after: $cursor, ownerAffiliations: $affiliations, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}) {
       pageInfo { hasNextPage endCursor }
       nodes { nameWithOwner stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
     }
@@ -195,9 +184,9 @@ query paginateRepos($login: String!, $cursor: String, $affiliations: [Repository
 `;
 
 const QUERY_PAGINATE_ORG_CONTRIBS = `
-query paginateOrgContribs($login: String!, $cursor: String, $fetchLangs: Boolean!) {
+query paginateOrgContribs($login: String!, $cursor: String, $pageSize: Int!, $fetchLangs: Boolean!) {
   user(login: $login) {
-    repositoriesContributedTo(first: 100, contributionTypes: [COMMIT, PULL_REQUEST, REPOSITORY], includeUserRepositories: false, after: $cursor) {
+    repositoriesContributedTo(first: $pageSize, contributionTypes: [COMMIT, PULL_REQUEST, REPOSITORY], includeUserRepositories: false, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       nodes { nameWithOwner owner { login __typename } stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
     }
@@ -206,9 +195,9 @@ query paginateOrgContribs($login: String!, $cursor: String, $fetchLangs: Boolean
 `;
 
 const QUERY_PAGINATE_ORG_REPOS = `
-query paginateOrg($login: String!, $cursor: String, $fetchLangs: Boolean!) {
+query paginateOrg($login: String!, $cursor: String, $pageSize: Int!, $fetchLangs: Boolean!) {
   organization(login: $login) {
-    repositories(first: 100, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}, after: $cursor) {
+    repositories(first: $pageSize, isFork: false, orderBy: {direction: DESC, field: STARGAZERS}, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       nodes { nameWithOwner stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
     }
@@ -286,10 +275,7 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
       login: username,
       from,
       to,
-      isPersonal,
       isOrg,
-      fetchLangs,
-      affiliations,
     });
     user = data.user;
     if (!user) throw new NotFoundError();
@@ -297,7 +283,6 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
     if (err instanceof NotFoundError) {
       const data = await postGraphQL(QUERY_ORG, {
         login: username,
-        fetchLangs,
       });
       user = data.organization;
       if (!user) throw new NotFoundError();
@@ -325,37 +310,40 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
     if (fetchLangs) accLangs(n.languages?.edges, langMap);
   };
 
-  const traversePages = async (connection: any, query: string, scopeCheck: boolean) => {
-    let hasNext = connection?.pageInfo?.hasNextPage;
-    let cursor = connection?.pageInfo?.endCursor;
-    let page = 1;
-    for (const n of connection?.nodes || []) processNode(n, scopeCheck);
+  const getConnection = (data: any, query: string) =>
+    data.user
+      ? query.includes("repositoriesContributedTo")
+        ? data.user.repositoriesContributedTo
+        : data.user.repositories
+      : data.organization?.repositories;
 
-    while (hasNext && cursor && page++ < MAX_PAGES) {
+  const traversePages = async (query: string, scopeCheck: boolean) => {
+    let cursor: string | null = null;
+    let page = 0;
+    let hasNext = true;
+
+    while (hasNext && page++ < MAX_PAGES) {
       const data = await postGraphQL(query, {
         login: username,
         cursor,
+        pageSize: REPO_PAGE_SIZE,
         fetchLangs,
         affiliations,
       });
-      const nextConn = data.user
-        ? query.includes("repositoriesContributedTo")
-          ? data.user.repositoriesContributedTo
-          : data.user.repositories
-        : data.organization?.repositories;
+      const nextConn = getConnection(data, query);
       for (const n of nextConn?.nodes || []) processNode(n, scopeCheck);
       hasNext = nextConn?.pageInfo?.hasNextPage;
       cursor = nextConn?.pageInfo?.endCursor;
+      if (hasNext && !cursor) break;
     }
   };
 
   const tasks: Promise<void>[] = [];
   if (!isOrgAccount) {
-    if (isPersonal) tasks.push(traversePages(user.repositories, QUERY_PAGINATE_USER_REPOS, false));
-    if (isOrg)
-      tasks.push(traversePages(user.repositoriesContributedTo, QUERY_PAGINATE_ORG_CONTRIBS, true));
+    if (isPersonal) tasks.push(traversePages(QUERY_PAGINATE_USER_REPOS, false));
+    if (isOrg) tasks.push(traversePages(QUERY_PAGINATE_ORG_CONTRIBS, true));
   } else {
-    tasks.push(traversePages(user.repositories, QUERY_PAGINATE_ORG_REPOS, false));
+    tasks.push(traversePages(QUERY_PAGINATE_ORG_REPOS, false));
   }
 
   const [avatarDataUrl] = await Promise.all([fetchAvatarAsBase64(user.avatarUrl), ...tasks]);

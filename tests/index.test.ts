@@ -181,6 +181,18 @@ describe("index routes", () => {
                 avatarUrl: "https://avatars.githubusercontent.com/u/2?v=4",
                 description: "Org profile",
                 twitterUsername: "acme",
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      if (query.includes("paginateOrg")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              organization: {
                 repositories: {
                   totalCount: 1,
                   pageInfo: { hasNextPage: false, endCursor: null },

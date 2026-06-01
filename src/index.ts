@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
-import { cors } from "@elysiajs/cors";
-import { openapi } from "@elysiajs/openapi";
-import { serverTiming } from "@elysiajs/server-timing";
+import { cors } from "@elysia/cors";
+import { openapi } from "@elysia/openapi";
+import { serverTiming } from "@elysia/server-timing";
 import {
   AuthError,
   getCacheMetrics,
