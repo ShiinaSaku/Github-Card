@@ -34,6 +34,12 @@ export const twColors: Record<string, string> = {
   "purple-400": "#c084fc",
   "purple-900": "#581c87",
   "purple-950": "#3b0764",
+  "indigo-300": "#a5b4fc",
+  "indigo-400": "#818cf8",
+  "indigo-500": "#6366f1",
+  "indigo-900": "#312e81",
+  "violet-300": "#c4b5fd",
+  "violet-400": "#a78bfa",
   "blue-300": "#93c5fd",
   "blue-400": "#60a5fa",
   "blue-500": "#3b82f6",
@@ -67,9 +73,13 @@ export const twColors: Record<string, string> = {
 };
 
 export function resolveTw(token: string, property: "fill" | "stroke"): string {
-  if (/^[0-9A-Fa-f]{3,8}$/.test(token)) {
-    return `${property}="#${token}"`;
+  const value = token.trim();
+  // Raw hex, with or without "#": only valid SVG lengths (3/4/6/8)
+  const hex = value.startsWith("#") ? value.slice(1) : value;
+  if (/^(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(hex)) {
+    return `${property}="#${hex}"`;
   }
-  const colorName = token.replace("fill-", "").replace("stroke-", "");
-  return `${property}="${twColors[colorName] || token}"`;
+  // Tailwind-style token: fill-rose-400 / stroke-slate-200 / rose-400
+  const colorName = value.replace(/^fill-/, "").replace(/^stroke-/, "");
+  return `${property}="${twColors[colorName] ?? value}"`;
 }

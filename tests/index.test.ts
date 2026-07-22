@@ -89,6 +89,8 @@ describe("index routes", () => {
     expect(res.headers.get("content-type")).toContain("image/svg+xml");
     expect(body).toContain("default");
     expect(body).toContain("tokyonight");
+    // Cards inlined as nested <svg> (GitHub camo-safe), not data-URI SVG images
+    expect(body).not.toContain("data:image/svg+xml");
   });
 
   it("serves health and cache telemetry", async () => {

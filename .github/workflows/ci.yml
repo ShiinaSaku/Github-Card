@@ -29,6 +29,9 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      - name: Format check
+        run: bun run fmt:check
+
       - name: Lint
         run: bun run lint
 
@@ -37,6 +40,9 @@ jobs:
 
       - name: Test
         run: bun test
+
+      - name: Build dist
+        run: bun run build
 
       - name: Summary
         if: always()

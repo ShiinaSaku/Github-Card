@@ -1,0 +1,45 @@
+name: Bump
+
+# One-click release: Actions → Bump → pick level.
+# Commits "chore(release): vX.Y.Z" + tag vX.Y.Z to main, which triggers Release.
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: "Version bump level"
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Bump version and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version "${{ inputs.level }}" --no-git-tag-version
+          VERSION="$(node -p "require('./package.json').version")"
+          git add package.json
+          git commit -m "chore(release): v${VERSION}"
+          git tag -a "v${VERSION}" -m "v${VERSION}"
+          git push origin HEAD:main --follow-tags

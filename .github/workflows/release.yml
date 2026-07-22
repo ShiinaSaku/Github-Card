@@ -25,6 +25,9 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      - name: Format check
+        run: bun run fmt:check
+
       - name: Lint
         run: bun run lint
 
@@ -33,6 +36,9 @@ jobs:
 
       - name: Test
         run: bun test
+
+      - name: Build dist
+        run: bun run build
 
   publish:
     needs: ci
@@ -59,6 +65,21 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      - name: Verify tag matches package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match package.json version '$PKG'"
+            exit 1
+          fi
+
+      - name: Build dist
+        run: bun run build
+
+      - name: Verify package contents
+        run: npm pack --dry-run
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
@@ -68,3 +89,5 @@ jobs:
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           generate_release_notes: true
+          files: |
+            dist/**

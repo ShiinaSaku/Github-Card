@@ -26,27 +26,37 @@
     "url": "https://github.com/ShiinaSaku/Github-Card.git"
   },
   "files": [
+    "dist",
     "src",
     "fonts",
     "README.md",
     "LICENSE"
   ],
   "type": "module",
-  "main": "./src/lib.ts",
-  "module": "./src/lib.ts",
-  "types": "./src/lib.ts",
+  "main": "./dist/lib.js",
+  "module": "./dist/lib.js",
+  "types": "./dist/lib.d.ts",
   "exports": {
     ".": {
-      "types": "./src/lib.ts",
-      "import": "./src/lib.ts"
+      "types": "./dist/lib.d.ts",
+      "bun": "./src/lib.ts",
+      "import": "./dist/lib.js",
+      "default": "./dist/lib.js"
     },
     "./server": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
-    }
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/lib.ts --outfile dist/lib.js --format esm --target node && tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run build",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
@@ -59,15 +69,15 @@
     "@elysia/cors": "^1.4.2",
     "@elysia/openapi": "^1.4.15",
     "@elysia/server-timing": "^1.4.1",
-    "elysia": "^1.4.28"
+    "elysia": "^1.4.29"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "^4.3.0",
+    "@tailwindcss/cli": "^4.3.3",
     "@types/bun": "^1.3.14",
     "oxfmt": "0.60.0",
     "oxlint": "1.75.0",
-    "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3"
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
   },
   "packageManager": "bun@1.3.14"
 }

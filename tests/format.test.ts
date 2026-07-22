@@ -10,6 +10,12 @@ describe("format utils", () => {
     expect(kFormat(1250000)).toBe("1.3M");
   });
 
+  it("rounds across unit boundaries", () => {
+    expect(kFormat(999950)).toBe("1M");
+    expect(kFormat(999999)).toBe("1M");
+    expect(kFormat(999949)).toBe("999.9k");
+  });
+
   it("escapes XML characters", () => {
     expect(escapeXml("<>&\"'")).toBe("&lt;&gt;&amp;&quot;&#39;");
   });

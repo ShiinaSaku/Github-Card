@@ -139,14 +139,14 @@ function renderUserThemesSvg(
       const col = index % cols;
       const row = Math.floor(index / cols);
       const x = gap + col * (cardW + gap);
-      const y = gap + row * (cellH + gap);
-      const cardSvg = renderCard(user, stats, langs, { ...cardOpts, theme: name });
-      const encoded = encodeURIComponent(cardSvg).replace(/'/g, "%27").replace(/"/g, "%22");
+      const y = gap + row * (cellH + gap) + labelH;
+      // Inline the card as a nested <svg> element (GitHub camo-safe, unlike data-URI <image>)
+      const cardSvg = renderCard(user, stats, langs, { ...cardOpts, theme: name }).replace(
+        "<svg ",
+        `<svg x="${x}" y="${y}" `,
+      );
 
-      return `<g transform="translate(${x},${y})">
-        <text x="4" y="14" fill="#e2e8f0" font-size="13" font-family="Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-weight="700">${name}</text>
-        <image href="data:image/svg+xml;utf8,${encoded}" x="0" y="${labelH}" width="${cardW}" height="${cardH}"/>
-      </g>`;
+      return `<text x="${x + 4}" y="${y - 8}" fill="#e2e8f0" font-size="13" font-family="Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-weight="700">${name}</text>${cardSvg}`;
     })
     .join("");
 
@@ -215,7 +215,7 @@ const app = new Elysia({ name: "github-card" })
       documentation: {
         info: {
           title: "GitHub Profile Card API",
-          version: "1.5.0",
+          version: "4.0.0",
           description:
             "Generate GitHub profile SVG/PNG cards for README, web embeds, and social previews.",
         },
@@ -253,8 +253,7 @@ const app = new Elysia({ name: "github-card" })
     () => ({
       message: "GitHub Profile Card API",
       usage: "GET /card/:username",
-      themes:
-        "default, dark, radical, merko, gruvbox, tokyonight, onedark, cobalt, synthwave, highcontrast, dracula, monokai, nord, github_dark, pearl, slate, forest, rose, sand",
+      themes: Object.keys(themes).join(", "),
       affiliations: "affiliated (default), owner",
       organizationSupport: "Use /card/:organization-login",
     }),

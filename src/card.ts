@@ -163,7 +163,7 @@ export function renderCard(
   const sorted = [...activeLangsList].sort((a, b) => b.size - a.size);
   const visualLangs = buildLanguageSegments(sorted, totalSize, contentW);
   const barY = statsY + statsH + (statsH ? 16 : 12);
-  const barH = 8;
+  const barH = 10;
 
   const maxLegend = compact ? 0 : 6;
   const legendLangs = visualLangs.slice(0, maxLegend);
@@ -244,14 +244,14 @@ export function renderCard(
     ".meta { font-size: 12px; font-weight: 500; fill: " + textColor + "; opacity: 0.7; }",
   );
   cssLines.push(
-    ".bio { font-size: 11px; font-weight: 400; fill: " + textColor + "; opacity: 0.6; }",
+    ".bio { font-size: 11px; font-weight: 400; fill: " + textColor + "; opacity: 0.68; }",
   );
   cssLines.push(
     ".stat-label { font-size: 9px; font-weight: 600; fill: " +
       textColor +
-      "; opacity: 0.48; letter-spacing: 0; }",
+      "; opacity: 0.5; letter-spacing: 0.08em; }",
   );
-  cssLines.push(".stat-value { font-size: 14px; font-weight: 700; fill: " + textColor + "; }");
+  cssLines.push(".stat-value { font-size: 15px; font-weight: 800; fill: " + textColor + "; }");
   cssLines.push(
     ".twitter-text { font-size: 11px; font-weight: 500; fill: " + textColor + "; opacity: 0.65; }",
   );
@@ -278,11 +278,31 @@ export function renderCard(
     '<radialGradient id="gl" cx="12%" cy="15%" r="65%">' +
       '<stop offset="0%" stop-color="' +
       iconColor +
-      '" stop-opacity="0.06"/>' +
+      '" stop-opacity="0.08"/>' +
       '<stop offset="100%" stop-color="' +
       iconColor +
       '" stop-opacity="0"/>' +
       "</radialGradient>",
+  );
+  parts.push(
+    '<radialGradient id="gl2" cx="92%" cy="95%" r="55%">' +
+      '<stop offset="0%" stop-color="' +
+      titleColor +
+      '" stop-opacity="0.035"/>' +
+      '<stop offset="100%" stop-color="' +
+      titleColor +
+      '" stop-opacity="0"/>' +
+      "</radialGradient>",
+  );
+  parts.push(
+    '<linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" stop-color="' +
+      titleColor +
+      '"/>' +
+      '<stop offset="100%" stop-color="' +
+      iconColor +
+      '"/>' +
+      "</linearGradient>",
   );
   parts.push(
     '<linearGradient id="card-bg" x1="0" y1="0" x2="' +
@@ -293,12 +313,12 @@ export function renderCard(
       '<stop offset="0%" stop-color="' +
       bgColor +
       '"/>' +
-      '<stop offset="68%" stop-color="' +
+      '<stop offset="82%" stop-color="' +
       bgColor +
       '"/>' +
       '<stop offset="100%" stop-color="' +
       titleColor +
-      '" stop-opacity="0.08"/>' +
+      '" stop-opacity="0.04"/>' +
       "</linearGradient>",
   );
   parts.push(
@@ -324,18 +344,25 @@ export function renderCard(
       (W - 1) +
       '" height="' +
       (H - 1) +
-      '" rx="6" fill="' +
+      '" rx="10" fill="' +
       "url(#card-bg)" +
       '" stroke-opacity="1"/>',
   );
 
-  // glow overlay
+  // glow overlays (icon tint top-left, title tint bottom-right)
   parts.push(
     '<rect x="0.5" y="0.5" width="' +
       (W - 1) +
       '" height="' +
       (H - 1) +
-      '" rx="6" fill="url(#gl)"/>',
+      '" rx="10" fill="url(#gl)"/>',
+  );
+  parts.push(
+    '<rect x="0.5" y="0.5" width="' +
+      (W - 1) +
+      '" height="' +
+      (H - 1) +
+      '" rx="10" fill="url(#gl2)"/>',
   );
   parts.push(
     '<line x1="' +
@@ -352,7 +379,7 @@ export function renderCard(
         (W - 1) +
         '" height="' +
         (H - 1) +
-        '" rx="6" fill="none" stroke="' +
+        '" rx="10" fill="none" stroke="' +
         borderColor +
         '" stroke-opacity="0.5"/>',
     );
@@ -387,9 +414,7 @@ export function renderCard(
       (PY + avatarR) +
       '" r="' +
       (avatarR + 1.5) +
-      '" fill="none" stroke="' +
-      borderColor +
-      '" stroke-opacity="0.3" stroke-width="1"/>' +
+      '" fill="none" stroke="url(#ring)" stroke-opacity="0.55" stroke-width="1.5"/>' +
       "</g>",
   );
 
@@ -444,7 +469,7 @@ export function renderCard(
         contentW +
         '" height="' +
         (statsH + 8) +
-        '" rx="6" fill="' +
+        '" rx="8" fill="' +
         textColor +
         '" opacity="0.035"/>',
     );
@@ -470,7 +495,7 @@ export function renderCard(
           Math.max(0, statW - 8) +
           '" height="' +
           (statsH - 2) +
-          '" rx="5" fill="' +
+          '" rx="8" fill="' +
           textColor +
           '" opacity="0.028"/>',
       );
@@ -488,25 +513,24 @@ export function renderCard(
           ">",
       );
 
-      // icon centered
-      parts.push(
-        '<circle cx="0" cy="8" r="12" fill="' +
-          iconColor +
-          '" opacity="0.1"/><g transform="translate(-8,0)">' +
-          icon(d.iconName, iconColor, 16) +
-          "</g>",
-      );
-
       // value
       parts.push(
-        '<text x="0" y="28" class="stat-value" text-anchor="middle">' + kFormat(val) + "</text>",
+        '<text x="0" y="26" class="stat-value" text-anchor="middle">' + kFormat(val) + "</text>",
       );
 
-      // label
+      // label with tiny inline icon, centered as a unit
+      const labelText = d.label.toUpperCase();
+      const labelW = labelText.length * 6.8;
+      const rowW = 10 + 4 + labelW;
       parts.push(
-        '<text x="0" y="40" class="stat-label" text-anchor="middle">' +
-          d.label.toUpperCase() +
-          "</text>",
+        '<g transform="translate(' +
+          -rowW / 2 +
+          ',31.5)">' +
+          icon(d.iconName, iconColor, 10) +
+          "</g>",
+      );
+      parts.push(
+        '<text x="' + (-rowW / 2 + 14) + '" y="40" class="stat-label">' + labelText + "</text>",
       );
 
       parts.push("</g>");
@@ -544,7 +568,7 @@ export function renderCard(
         (animate ? "0" : contentW) +
         '" height="' +
         barH +
-        '" rx="4">' +
+        '" rx="5">' +
         (animate
           ? '<animate attributeName="width" from="0" to="' +
             contentW +
@@ -561,7 +585,7 @@ export function renderCard(
         contentW +
         '" height="' +
         barH +
-        '" rx="4" class="lang-progress"/>',
+        '" rx="5" class="lang-progress"/>',
     );
 
     parts.push('<g clip-path="url(#lang-clip)">');

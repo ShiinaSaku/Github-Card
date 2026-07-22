@@ -44,5 +44,6 @@ yarn-error.log*
 **/*.tgz
 **/*.log
 **/*.bun
+*.tsbuildinfo
 .mcp.json
 .opencode.json

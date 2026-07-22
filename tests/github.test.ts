@@ -258,7 +258,7 @@ describe("getProfileData", () => {
     expect(profile.stats.repos).toBe(1);
     expect(fullProfile.query).not.toContain("repositories(");
     expect(fullProfile.query).not.toContain("repositoriesContributedTo(");
-    expect(paginateRepos.variables.pageSize).toBe(50);
+    expect(paginateRepos.variables.pageSize).toBe(100);
     expect(paginateRepos.variables.cursor).toBeNull();
   });
 
