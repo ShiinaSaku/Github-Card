@@ -15,7 +15,7 @@ export type { UserProfile, UserStats, LanguageStat, ProfileData, CardOptions } f
 export { themes, resolveColors, type Theme } from "./utils/themes";
 
 // Utilities
-export { kFormat, escapeXml, wrapText } from "./utils/format";
+export { kFormat, escapeXml, wrapText, measureText } from "./utils/format";
 export { icons, icon } from "./utils/icons";
 export { getLangColor } from "./utils/languages";
 export { FONT_FACE, FONT_FAMILY } from "./utils/font";

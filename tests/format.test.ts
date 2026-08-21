@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { kFormat, escapeXml, wrapText } from "../src/utils/format";
+import { kFormat, escapeXml, wrapText, measureText } from "../src/utils/format";
 
 describe("format utils", () => {
   it("formats numbers with k/M", () => {
@@ -8,6 +8,16 @@ describe("format utils", () => {
     expect(kFormat(1500)).toBe("1.5k");
     expect(kFormat(1000000)).toBe("1M");
     expect(kFormat(1250000)).toBe("1.3M");
+  });
+
+  it("formats billions with B", () => {
+    expect(kFormat(1_000_000_000)).toBe("1B");
+    expect(kFormat(2_500_000_000)).toBe("2.5B");
+  });
+
+  it("handles negative numbers", () => {
+    expect(kFormat(-1500)).toBe("-1.5k");
+    expect(kFormat(-42)).toBe("-42");
   });
 
   it("rounds across unit boundaries", () => {
@@ -25,5 +35,14 @@ describe("format utils", () => {
     expect(lines.length).toBe(2);
     expect(lines[0]).toBe("one two");
     expect(lines[1] !== undefined && lines[1].endsWith("…")).toBe(true);
+  });
+
+  it("measures text width proportional to font size", () => {
+    expect(measureText("", 14)).toBe(0);
+    const wide = measureText("MMMM", 16);
+    const narrow = measureText("iiii", 16);
+    expect(wide).toBeGreaterThan(narrow);
+    expect(measureText("hello", 32)).toBeGreaterThan(measureText("hello", 16));
+    expect(measureText("bold", 16, 700)).toBeGreaterThan(measureText("bold", 16, 400));
   });
 });
