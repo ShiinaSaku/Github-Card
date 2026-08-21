@@ -116,7 +116,7 @@ export class GitHubClient {
    * @param options Request options including variables and fetch options.
    * @returns Strongly typed response data.
    */
-  public async request<T = any>(query: string, options: RequestOptions = {}): Promise<T> {
+  public async request<T = unknown>(query: string, options: RequestOptions = {}): Promise<T> {
     const { variables, timeoutMs = this.timeoutMs, signal: userSignal, ...fetchOptions } = options;
 
     const headers = new Headers(fetchOptions.headers);
@@ -153,11 +153,13 @@ export class GitHubClient {
         body: JSON.stringify({ query, variables }),
         signal: abortController.signal,
       });
-    } catch (error: any) {
-      if (error.name === "AbortError" || error instanceof TimeoutError) {
-        throw new TimeoutError(error.message || "Request timed out");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      const name = error instanceof Error ? error.name : "";
+      if (name === "AbortError" || error instanceof TimeoutError) {
+        throw new TimeoutError(message || "Request timed out");
       }
-      throw new GitHubError(`Network error: ${error.message || "Unknown error"}`);
+      throw new GitHubError(`Network error: ${message || "Unknown error"}`);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
       if (userSignal) {
@@ -170,12 +172,15 @@ export class GitHubClient {
       this.classifyError(errorText || response.statusText, response.status, response.headers);
     }
 
-    const body = (await response.json().catch(() => ({}))) as any;
+    const body = (await response.json().catch(() => ({}))) as {
+      data?: T;
+      errors?: { message: string }[];
+    };
 
     if (body.errors && body.errors.length > 0) {
-      // Throw the first error specifically, but could be enhanced to aggregate
       const firstError = body.errors[0];
-      this.classifyError(firstError.message, response.status, response.headers);
+      const message = firstError?.message ?? "GraphQL error";
+      this.classifyError(message, response.status, response.headers);
     }
 
     if (!body.data) {

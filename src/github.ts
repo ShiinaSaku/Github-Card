@@ -11,13 +11,13 @@ import {
 export { NotFoundError, RateLimitError, AuthError, UpstreamError };
 
 const githubClient = new GitHubClient({
-  token: Bun.env.GITHUB_TOKEN || process.env?.GITHUB_TOKEN || "",
+  token: Bun.env.GITHUB_TOKEN ?? "",
   userAgent: "github-card",
 });
 
 const CACHE_FRESH_MS = 30 * 60 * 1000;
 const CACHE_STALE_MS = 30 * 60 * 1000;
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 8;
 const REDIS_TTL_SECONDS = Math.ceil((CACHE_FRESH_MS + CACHE_STALE_MS) / 1000);
 const FETCH_TIMEOUT_MS = 6000;
 const AVATAR_TIMEOUT_MS = 4000;
@@ -123,8 +123,8 @@ export function getCacheMetrics() {
     fresh,
     stale,
     expired,
-    ttlFreshSeconds: 1800,
-    ttlStaleSeconds: 1800,
+    ttlFreshSeconds: CACHE_FRESH_MS / 1000,
+    ttlStaleSeconds: CACHE_STALE_MS / 1000,
   };
 }
 
@@ -143,6 +143,44 @@ type FetchOptions = {
   orgs?: string[];
   affiliations?: "owner" | "affiliated";
   forceRefresh?: boolean;
+};
+
+type RepoNode = {
+  nameWithOwner: string;
+  stargazers: { totalCount: number };
+  owner?: { login: string; __typename: string } | null;
+  languages?: { edges: LangEdge[] | null } | null;
+};
+
+type PageInfo = { hasNextPage: boolean; endCursor: string | null };
+type RepoConnection = { pageInfo: PageInfo; nodes: RepoNode[] | null };
+
+type ProfileUser = {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  bio: string | null;
+  pronouns: string | null;
+  twitterUsername: string | null;
+  openPRs: { totalCount: number };
+  closedPRs: { totalCount: number };
+  mergedPRs: { totalCount: number };
+  openIssues: { totalCount: number };
+  closedIssues: { totalCount: number };
+  contributionsCollection: {
+    totalCommitContributions: number;
+    commitContributionsByRepository?: ContributionEntry[] | null;
+    pullRequestContributionsByRepository?: ContributionEntry[] | null;
+    issueContributionsByRepository?: ContributionEntry[] | null;
+  };
+};
+
+type OrgProfile = {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  description: string | null;
+  twitterUsername: string | null;
 };
 
 const QUERY_PROFILE = `
@@ -205,21 +243,23 @@ query paginateOrg($login: String!, $cursor: String, $pageSize: Int!, $fetchLangs
 }
 `;
 
-async function postGraphQL(query: string, variables: Record<string, unknown>) {
-  return githubClient.request(query, {
+async function postGraphQL<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+  return githubClient.request<T>(query, {
     variables,
     timeoutMs: FETCH_TIMEOUT_MS,
   });
 }
 
 type LangMap = Map<string, { size: number; color: string }>;
-function accLangs(edges: any[], map: LangMap) {
-  if (!edges) return;
-  for (const e of edges) {
-    if (!e?.node?.name || !e.size) continue;
-    const cur = map.get(e.node.name);
-    if (cur) cur.size += e.size;
-    else map.set(e.node.name, { size: e.size, color: e.node.color || "#ccc" });
+type LangEdge = { size: number; node: { name: string; color: string | null } };
+
+function accLangs(edges: LangEdge[] | null | undefined, map: LangMap): void {
+  if (!edges?.length) return;
+  for (const edge of edges) {
+    if (!edge?.node?.name || !edge.size) continue;
+    const existing = map.get(edge.node.name);
+    if (existing) existing.size += edge.size;
+    else map.set(edge.node.name, { size: edge.size, color: edge.node.color ?? "#ccc" });
   }
 }
 
@@ -244,15 +284,24 @@ async function fetchAvatarAsBase64(url: string | null | undefined): Promise<stri
   }
 }
 
-function sumContributions(entries: any[], orgsSet: Set<string> | null) {
-  let tot = 0;
-  for (const e of entries || []) {
-    const owner = e?.repository?.owner;
+type ContributionEntry = {
+  repository?: { owner?: { login?: string; __typename?: string } | null } | null;
+  contributions?: { totalCount?: number } | null;
+};
+
+function sumContributions(
+  entries: ContributionEntry[] | null | undefined,
+  orgsSet: Set<string> | null,
+): number {
+  if (!entries?.length) return 0;
+  let total = 0;
+  for (const entry of entries) {
+    const owner = entry?.repository?.owner;
     if (owner?.__typename !== "Organization" || !owner?.login) continue;
     if (orgsSet && !orgsSet.has(owner.login.toLowerCase())) continue;
-    tot += e?.contributions?.totalCount || 0;
+    total += entry?.contributions?.totalCount ?? 0;
   }
-  return tot;
+  return total;
 }
 
 async function directFetch(username: string, opts: FetchOptions): Promise<ProfileData> {
@@ -268,10 +317,10 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
   const from = new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString();
   const to = now.toISOString();
 
-  let user: any = null;
+  let user: ProfileUser | OrgProfile | null = null;
   let isOrgAccount = false;
   try {
-    const data = await postGraphQL(QUERY_PROFILE, {
+    const data = await postGraphQL<{ user: ProfileUser | null }>(QUERY_PROFILE, {
       login: username,
       from,
       to,
@@ -281,7 +330,7 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
     if (!user) throw new NotFoundError();
   } catch (err) {
     if (err instanceof NotFoundError) {
-      const data = await postGraphQL(QUERY_ORG, {
+      const data = await postGraphQL<{ organization: OrgProfile | null }>(QUERY_ORG, {
         login: username,
       });
       user = data.organization;
@@ -295,35 +344,40 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
   let stars = 0;
   let reposCount = 0;
 
-  const processNode = (n: any, scopeCheck: boolean) => {
-    if (!n || !n.nameWithOwner || seenRepos.has(n.nameWithOwner)) return;
+  const processNode = (node: RepoNode, scopeCheck: boolean): void => {
+    if (!node?.nameWithOwner || seenRepos.has(node.nameWithOwner)) return;
     if (
       scopeCheck &&
-      n.owner?.__typename === "Organization" &&
+      node.owner?.__typename === "Organization" &&
       orgsSet &&
-      !orgsSet.has(n.owner.login.toLowerCase())
+      !orgsSet.has(node.owner.login.toLowerCase())
     )
       return;
-    seenRepos.add(n.nameWithOwner);
-    stars += n.stargazers?.totalCount || 0;
+    seenRepos.add(node.nameWithOwner);
+    stars += node.stargazers?.totalCount ?? 0;
     reposCount++;
-    if (fetchLangs) accLangs(n.languages?.edges, langMap);
+    if (fetchLangs) accLangs(node.languages?.edges ?? null, langMap);
   };
 
-  const getConnection = (data: any, query: string) =>
+  type PaginateData = {
+    user?: { repositories?: RepoConnection; repositoriesContributedTo?: RepoConnection } | null;
+    organization?: { repositories: RepoConnection } | null;
+  };
+
+  const getConnection = (data: PaginateData, query: string): RepoConnection | undefined =>
     data.user
       ? query.includes("repositoriesContributedTo")
-        ? data.user.repositoriesContributedTo
-        : data.user.repositories
+        ? (data.user.repositoriesContributedTo ?? undefined)
+        : (data.user.repositories ?? undefined)
       : data.organization?.repositories;
 
-  const traversePages = async (query: string, scopeCheck: boolean) => {
+  const traversePages = async (query: string, scopeCheck: boolean): Promise<void> => {
     let cursor: string | null = null;
     let page = 0;
     let hasNext = true;
 
     while (hasNext && page++ < MAX_PAGES) {
-      const data = await postGraphQL(query, {
+      const data = await postGraphQL<PaginateData>(query, {
         login: username,
         cursor,
         pageSize: REPO_PAGE_SIZE,
@@ -331,9 +385,9 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
         affiliations,
       });
       const nextConn = getConnection(data, query);
-      for (const n of nextConn?.nodes || []) processNode(n, scopeCheck);
-      hasNext = nextConn?.pageInfo?.hasNextPage;
-      cursor = nextConn?.pageInfo?.endCursor;
+      for (const node of nextConn?.nodes ?? []) processNode(node, scopeCheck);
+      hasNext = nextConn?.pageInfo?.hasNextPage ?? false;
+      cursor = nextConn?.pageInfo?.endCursor ?? null;
       if (hasNext && !cursor) break;
     }
   };
@@ -353,18 +407,19 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
   let issues = 0;
 
   if (!isOrgAccount) {
-    const c = user.contributionsCollection;
+    const profile = user as ProfileUser;
+    const c = profile.contributionsCollection;
     if (opts.scope === "org") {
       commits = sumContributions(c?.commitContributionsByRepository, orgsSet);
       prs = sumContributions(c?.pullRequestContributionsByRepository, orgsSet);
       issues = sumContributions(c?.issueContributionsByRepository, orgsSet);
     } else {
-      commits = c?.totalCommitContributions || 0;
+      commits = c?.totalCommitContributions ?? 0;
       prs =
-        (user.openPRs?.totalCount || 0) +
-        (user.closedPRs?.totalCount || 0) +
-        (user.mergedPRs?.totalCount || 0);
-      issues = (user.openIssues?.totalCount || 0) + (user.closedIssues?.totalCount || 0);
+        (profile.openPRs?.totalCount ?? 0) +
+        (profile.closedPRs?.totalCount ?? 0) +
+        (profile.mergedPRs?.totalCount ?? 0);
+      issues = (profile.openIssues?.totalCount ?? 0) + (profile.closedIssues?.totalCount ?? 0);
     }
   }
 
@@ -373,14 +428,17 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
     .sort((a, b) => b.size - a.size)
     .slice(0, opts.langCount || 5);
 
+  const profileUser = !isOrgAccount ? (user as ProfileUser) : null;
+  const orgUser = isOrgAccount ? (user as OrgProfile) : null;
+
   return {
     user: {
-      login: user.login,
-      name: user.name,
+      login: user!.login,
+      name: user!.name,
       avatarUrl: avatarDataUrl,
-      bio: user.bio || user.description,
-      pronouns: user.pronouns,
-      twitter: user.twitterUsername,
+      bio: isOrgAccount ? (orgUser?.description ?? null) : (profileUser?.bio ?? null),
+      pronouns: isOrgAccount ? null : (profileUser?.pronouns ?? null),
+      twitter: user!.twitterUsername ?? null,
     },
     stats: { stars, repos: reposCount, prs, issues, commits },
     languages,
@@ -394,7 +452,7 @@ export async function getProfileData(
   const norm = normalizeUsername(username);
   const orgs = normalizeOrgFilters(opts.orgs);
   const cacheKey = Bun.hash(
-    `v${CACHE_VERSION}:${norm}:${opts.scope || "personal"}:${opts.affiliations || "affiliated"}:${opts.includeLanguages !== false}:${opts.langCount || 5}:${orgs.join("|")}`,
+    `v${CACHE_VERSION}:${norm}:${opts.scope || "personal"}:${opts.affiliations || "owner"}:${opts.includeLanguages !== false}:${opts.langCount || 5}:${orgs.join("|")}`,
   ).toString(36);
 
   if (!opts.forceRefresh) {

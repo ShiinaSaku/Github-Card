@@ -17,6 +17,7 @@ import { themes } from "./utils";
 const USERNAME_PATTERN = "^[a-zA-Z0-9-]{1,39}$";
 const CACHE_CONTROL_HEADER = "public, max-age=0, s-maxage=1800, stale-while-revalidate=1800";
 const EDGE_CACHE_CONTROL_HEADER = "public, s-maxage=1800, stale-while-revalidate=1800";
+const DEFAULT_AFFILIATIONS = "owner" as const;
 const appStartedAt = Date.now();
 
 const CardQuerySchema = t.Object({
@@ -104,7 +105,7 @@ async function buildCardSvg(username: string, query: CardQuery): Promise<string>
   const orgs = parseOrgs(query.orgs);
   const fields = parseFieldSet(query.fields);
   const includeLanguages = shouldIncludeLanguages(fields);
-  const affiliations = query.affiliations ?? "affiliated";
+  const affiliations = (query.affiliations ?? DEFAULT_AFFILIATIONS) as "owner" | "affiliated";
 
   const data = await getProfileData(username, {
     includeLanguages,
@@ -142,8 +143,8 @@ function renderUserThemesSvg(
       const y = gap + row * (cellH + gap) + labelH;
       // Inline the card as a nested <svg> element (GitHub camo-safe, unlike data-URI <image>)
       const cardSvg = renderCard(user, stats, langs, { ...cardOpts, theme: name }).replace(
-        "<svg ",
-        `<svg x="${x}" y="${y}" `,
+        /^<svg\b/,
+        `<svg x="${x}" y="${y}"`,
       );
 
       return `<text x="${x + 4}" y="${y - 8}" fill="#e2e8f0" font-size="13" font-family="Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial" font-weight="700">${name}</text>${cardSvg}`;
@@ -215,7 +216,7 @@ const app = new Elysia({ name: "github-card" })
       documentation: {
         info: {
           title: "GitHub Profile Card API",
-          version: "4.0.0",
+          version: "4.2.0",
           description:
             "Generate GitHub profile SVG/PNG cards for README, web embeds, and social previews.",
         },
@@ -254,7 +255,7 @@ const app = new Elysia({ name: "github-card" })
       message: "GitHub Profile Card API",
       usage: "GET /card/:username",
       themes: Object.keys(themes).join(", "),
-      affiliations: "affiliated (default), owner",
+      affiliations: "owner (default), affiliated",
       organizationSupport: "Use /card/:organization-login",
     }),
     {
@@ -273,7 +274,7 @@ const app = new Elysia({ name: "github-card" })
         includeLanguages,
         langCount: q.lang_count ?? 5,
         scope,
-        affiliations: q.affiliations ?? "affiliated",
+        affiliations: (q.affiliations ?? DEFAULT_AFFILIATIONS) as "owner" | "affiliated",
         orgs,
       });
 
