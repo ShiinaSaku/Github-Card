@@ -1,5 +1,5 @@
 {
-  "lockfileVersion": 1,
+  "lockfileVersion": 2,
   "configVersion": 1,
   "workspaces": {
     "": {
@@ -8,7 +8,7 @@
         "@elysia/cors": "^1.4.2",
         "@elysia/openapi": "^1.4.15",
         "@elysia/server-timing": "^1.4.1",
-        "elysia": "latest",
+        "elysia": "1.4.29",
       },
       "devDependencies": {
         "@tailwindcss/cli": "^4.3.3",
