@@ -68,7 +68,7 @@
     "@elysia/cors": "^1.4.2",
     "@elysia/openapi": "^1.4.15",
     "@elysia/server-timing": "^1.4.1",
-    "elysia": "1.4.29"
+    "elysia": "1.4.30"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
