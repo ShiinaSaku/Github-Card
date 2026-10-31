@@ -1,6 +1,6 @@
-import { app } from "./app";
+import { app } from "./eli";
 
-export { app, type App } from "./app";
+export { app, type App } from "./eli";
 export default app;
 
 if (import.meta.main) {
