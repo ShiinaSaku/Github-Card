@@ -17,12 +17,12 @@ const githubClient = new GitHubClient({
 
 const CACHE_FRESH_MS = 30 * 60 * 1000;
 const CACHE_STALE_MS = 30 * 60 * 1000;
-const CACHE_VERSION = 8;
+const CACHE_VERSION = 9;
 const REDIS_TTL_SECONDS = Math.ceil((CACHE_FRESH_MS + CACHE_STALE_MS) / 1000);
 const FETCH_TIMEOUT_MS = 6000;
 const AVATAR_TIMEOUT_MS = 4000;
 const MAX_AVATAR_BYTES = 256 * 1024;
-const MAX_PAGES = 5;
+const MAX_PAGES = 100;
 const REPO_PAGE_SIZE = 100;
 const MAX_L1_ENTRIES = 1000;
 const REDIS_PROFILE_PREFIX = "profile:";
@@ -58,7 +58,7 @@ const refreshInFlight = new Set<string>();
 
 function evictL1IfNeeded() {
   if (memCache.size <= MAX_L1_ENTRIES) return;
-  const oldestKey = memCache.keys().next().value as string | undefined;
+  const oldestKey = memCache.keys().next().value;
   if (oldestKey) memCache.delete(oldestKey);
 }
 
@@ -133,12 +133,16 @@ function normalizeUsername(username: string): string {
 }
 
 function normalizeOrgFilters(orgs?: string[]): string[] {
-  return Array.from(new Set((orgs || []).map((o) => o.trim().toLowerCase()).filter(Boolean)));
+  return Array.from(
+    new Set((orgs || []).map((o) => o.trim().toLowerCase()).filter(Boolean)),
+  ).sort();
 }
 
 type FetchOptions = {
   includeLanguages?: boolean;
   langCount?: number;
+  hideLangs?: string[];
+  showLangs?: string[];
   scope?: "personal" | "org" | "all";
   orgs?: string[];
   affiliations?: "owner" | "affiliated";
@@ -147,6 +151,7 @@ type FetchOptions = {
 
 type RepoNode = {
   nameWithOwner: string;
+  isFork?: boolean;
   stargazers: { totalCount: number };
   owner?: { login: string; __typename: string } | null;
   languages?: { edges: LangEdge[] | null } | null;
@@ -224,9 +229,9 @@ query paginateRepos($login: String!, $cursor: String, $pageSize: Int!, $affiliat
 const QUERY_PAGINATE_ORG_CONTRIBS = `
 query paginateOrgContribs($login: String!, $cursor: String, $pageSize: Int!, $fetchLangs: Boolean!) {
   user(login: $login) {
-    repositoriesContributedTo(first: $pageSize, contributionTypes: [COMMIT, PULL_REQUEST, REPOSITORY], includeUserRepositories: false, after: $cursor) {
+    repositoriesContributedTo(first: $pageSize, contributionTypes: [COMMIT, ISSUE, PULL_REQUEST, REPOSITORY], includeUserRepositories: false, after: $cursor) {
       pageInfo { hasNextPage endCursor }
-      nodes { nameWithOwner owner { login __typename } stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
+      nodes { nameWithOwner isFork owner { login __typename } stargazers { totalCount } languages(first: 10, orderBy: {field: SIZE, direction: DESC}) @include(if: $fetchLangs) { edges { size node { color name } } } }
     }
   }
 }
@@ -304,12 +309,13 @@ function sumContributions(
   return total;
 }
 
-async function directFetch(username: string, opts: FetchOptions): Promise<ProfileData> {
+type EffectiveFetchOptions = Required<FetchOptions>;
+
+async function directFetch(username: string, opts: EffectiveFetchOptions): Promise<ProfileData> {
   const isPersonal = opts.scope !== "org";
   const isOrg = opts.scope === "org" || opts.scope === "all";
-  const fetchLangs = opts.includeLanguages ?? true;
-  const orgsArr = normalizeOrgFilters(opts.orgs);
-  const orgsSet = orgsArr.length > 0 ? new Set(orgsArr) : null;
+  const fetchLangs = opts.includeLanguages;
+  const orgsSet = opts.orgs.length > 0 ? new Set(opts.orgs) : null;
   const affiliations =
     opts.affiliations === "owner" ? ["OWNER"] : ["OWNER", "ORGANIZATION_MEMBER", "COLLABORATOR"];
 
@@ -324,7 +330,7 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
       login: username,
       from,
       to,
-      isOrg,
+      isOrg: opts.scope === "org",
     });
     user = data.user;
     if (!user) throw new NotFoundError();
@@ -345,14 +351,12 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
   let reposCount = 0;
 
   const processNode = (node: RepoNode, scopeCheck: boolean): void => {
-    if (!node?.nameWithOwner || seenRepos.has(node.nameWithOwner)) return;
-    if (
-      scopeCheck &&
-      node.owner?.__typename === "Organization" &&
-      orgsSet &&
-      !orgsSet.has(node.owner.login.toLowerCase())
-    )
-      return;
+    if (!node?.nameWithOwner || node.isFork || seenRepos.has(node.nameWithOwner)) return;
+    if (scopeCheck) {
+      const owner = node.owner;
+      if (owner?.__typename !== "Organization" || !owner.login) return;
+      if (orgsSet && !orgsSet.has(owner.login.toLowerCase())) return;
+    }
     seenRepos.add(node.nameWithOwner);
     stars += node.stargazers?.totalCount ?? 0;
     reposCount++;
@@ -373,10 +377,9 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
 
   const traversePages = async (query: string, scopeCheck: boolean): Promise<void> => {
     let cursor: string | null = null;
-    let page = 0;
-    let hasNext = true;
+    const seenCursors = new Set<string>();
 
-    while (hasNext && page++ < MAX_PAGES) {
+    for (let page = 0; page < MAX_PAGES; page++) {
       const data = await postGraphQL<PaginateData>(query, {
         login: username,
         cursor,
@@ -385,11 +388,23 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
         affiliations,
       });
       const nextConn = getConnection(data, query);
-      for (const node of nextConn?.nodes ?? []) processNode(node, scopeCheck);
-      hasNext = nextConn?.pageInfo?.hasNextPage ?? false;
-      cursor = nextConn?.pageInfo?.endCursor ?? null;
-      if (hasNext && !cursor) break;
+      if (
+        !nextConn ||
+        !Array.isArray(nextConn.nodes) ||
+        typeof nextConn.pageInfo?.hasNextPage !== "boolean"
+      ) {
+        throw new UpstreamError("GitHub repository pagination connection is missing or invalid");
+      }
+      for (const node of nextConn.nodes) processNode(node, scopeCheck);
+      if (!nextConn.pageInfo.hasNextPage) return;
+      const nextCursor = nextConn.pageInfo.endCursor;
+      if (typeof nextCursor !== "string" || !nextCursor.trim() || seenCursors.has(nextCursor)) {
+        throw new UpstreamError("GitHub repository pagination cursor is missing or invalid");
+      }
+      seenCursors.add(nextCursor);
+      cursor = nextCursor;
     }
+    throw new UpstreamError(`GitHub repository pagination exceeded ${MAX_PAGES} pages`);
   };
 
   const tasks: Promise<void>[] = [];
@@ -402,9 +417,9 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
 
   const [avatarDataUrl] = await Promise.all([fetchAvatarAsBase64(user.avatarUrl), ...tasks]);
 
-  let commits = 0;
-  let prs = 0;
-  let issues = 0;
+  let commits: number | null = null;
+  let prs: number | null = null;
+  let issues: number | null = null;
 
   if (!isOrgAccount) {
     const profile = user as ProfileUser;
@@ -423,22 +438,30 @@ async function directFetch(username: string, opts: FetchOptions): Promise<Profil
     }
   }
 
+  const hiddenLanguages = new Set(opts.hideLangs);
+  const shownLanguages = new Set(opts.showLangs);
   const languages = Array.from(langMap.entries())
+    .filter(([name]) => {
+      const normalized = name.trim().toLowerCase();
+      return (
+        !hiddenLanguages.has(normalized) && (!shownLanguages.size || shownLanguages.has(normalized))
+      );
+    })
     .map(([name, { size, color }]) => ({ name, size, color }))
     .sort((a, b) => b.size - a.size)
-    .slice(0, opts.langCount || 5);
+    .slice(0, opts.langCount);
 
   const profileUser = !isOrgAccount ? (user as ProfileUser) : null;
   const orgUser = isOrgAccount ? (user as OrgProfile) : null;
 
   return {
     user: {
-      login: user!.login,
-      name: user!.name,
+      login: user.login,
+      name: user.name,
       avatarUrl: avatarDataUrl,
       bio: isOrgAccount ? (orgUser?.description ?? null) : (profileUser?.bio ?? null),
       pronouns: isOrgAccount ? null : (profileUser?.pronouns ?? null),
-      twitter: user!.twitterUsername ?? null,
+      twitter: user.twitterUsername ?? null,
     },
     stats: { stars, repos: reposCount, prs, issues, commits },
     languages,
@@ -449,18 +472,39 @@ export async function getProfileData(
   username: string,
   opts: FetchOptions = {},
 ): Promise<ProfileData> {
-  const norm = normalizeUsername(username);
-  const orgs = normalizeOrgFilters(opts.orgs);
+  username = normalizeUsername(username);
+  const effectiveOpts: EffectiveFetchOptions = {
+    scope: opts.scope ?? "personal",
+    affiliations: opts.affiliations ?? "owner",
+    includeLanguages: opts.includeLanguages ?? true,
+    langCount: Number.isFinite(opts.langCount)
+      ? Math.max(1, Math.min(10, Math.floor(opts.langCount!)))
+      : 5,
+    hideLangs: normalizeOrgFilters(opts.hideLangs),
+    showLangs: normalizeOrgFilters(opts.showLangs),
+    orgs: normalizeOrgFilters(opts.orgs),
+    forceRefresh: opts.forceRefresh ?? false,
+  };
   const cacheKey = Bun.hash(
-    `v${CACHE_VERSION}:${norm}:${opts.scope || "personal"}:${opts.affiliations || "owner"}:${opts.includeLanguages !== false}:${opts.langCount || 5}:${orgs.join("|")}`,
+    JSON.stringify([
+      CACHE_VERSION,
+      username,
+      effectiveOpts.scope,
+      effectiveOpts.affiliations,
+      effectiveOpts.includeLanguages,
+      effectiveOpts.langCount,
+      effectiveOpts.orgs,
+      effectiveOpts.hideLangs,
+      effectiveOpts.showLangs,
+    ]),
   ).toString(36);
 
-  if (!opts.forceRefresh) {
+  if (!effectiveOpts.forceRefresh) {
     const mem = memCache.get(cacheKey);
     const now = Date.now();
     if (mem && mem.expiresAt > now) {
       if (mem.staleAt <= now && !refreshInFlight.has(cacheKey))
-        triggerBackgroundRefresh(username, opts, cacheKey);
+        triggerBackgroundRefresh(username, effectiveOpts, cacheKey);
       return mem.data;
     }
 
@@ -468,14 +512,14 @@ export async function getProfileData(
     if (cached) {
       setMemoryCache(cacheKey, cached);
       if (cached.staleAt <= now && !refreshInFlight.has(cacheKey))
-        triggerBackgroundRefresh(username, opts, cacheKey);
+        triggerBackgroundRefresh(username, effectiveOpts, cacheKey);
       return cached.data;
     }
   }
 
   if (inFlight.has(cacheKey)) return inFlight.get(cacheKey)!;
 
-  const promise = directFetch(username, opts)
+  const promise = directFetch(username, effectiveOpts)
     .then((data) => saveProfileCache(cacheKey, data))
     .finally(() => {
       inFlight.delete(cacheKey);
@@ -485,11 +529,11 @@ export async function getProfileData(
   return promise;
 }
 
-function triggerBackgroundRefresh(username: string, opts: FetchOptions, cacheKey: string) {
+function triggerBackgroundRefresh(username: string, opts: EffectiveFetchOptions, cacheKey: string) {
   if (refreshInFlight.has(cacheKey)) return;
   refreshInFlight.add(cacheKey);
 
-  void directFetch(username, { ...opts, forceRefresh: true })
+  void directFetch(username, opts)
     .then((data) => saveProfileCache(cacheKey, data))
     .catch(() => {})
     .finally(() => {
