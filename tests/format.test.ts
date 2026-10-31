@@ -45,4 +45,21 @@ describe("format utils", () => {
     expect(measureText("hello", 32)).toBeGreaterThan(measureText("hello", 16));
     expect(measureText("bold", 16, 700)).toBeGreaterThan(measureText("bold", 16, 400));
   });
+  it("measures in SVG pixels rather than sixteenths of a pixel", () => {
+    expect(measureText("MMMM", 16)).toBeCloseTo(60.8);
+    expect(measureText("日本語", 16)).toBeCloseTo(48);
+  });
+
+  it("wraps without duplicating a line or dropping the tail of long words", () => {
+    expect(wrapText("one two three four five", 8, 2)).toEqual(["one two", "three f…"]);
+    expect(wrapText("abcdefghijklmnop xyz", 8, 3)).toEqual(["abcdefgh", "ijklmnop", "xyz"]);
+    expect(wrapText("  one   two  ", 8, 2)).toEqual(["one two"]);
+    expect(wrapText("words", 8, 0)).toEqual([]);
+    expect(wrapText("words", 0, 2)).toEqual([]);
+    expect(wrapText("😀😀😀", 2, 2)).toEqual(["😀😀", "😀"]);
+  });
+
+  it("strips invalid XML characters without damaging valid Unicode", () => {
+    expect(escapeXml("A\u0000B\ud800😀")).toBe("AB😀");
+  });
 });

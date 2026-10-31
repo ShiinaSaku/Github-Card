@@ -1,3 +1,5 @@
+import { escapeXml } from "./format";
+
 export const icons = {
   star: `<path d="M10.92 2.868a1.25 1.25 0 0 1 2.16 0l2.795 4.798l5.428 1.176a1.25 1.25 0 0 1 .667 2.054l-3.7 4.141l.56 5.525a1.25 1.25 0 0 1-1.748 1.27L12 19.592l-5.082 2.24a1.25 1.25 0 0 1-1.748-1.27l.56-5.525l-3.7-4.14a1.25 1.25 0 0 1 .667-2.055l5.428-1.176z"/>`,
   commit: `<path fill-rule="evenodd" d="M10.5 7.75a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm1.43.75a4.002 4.002 0 01-7.86 0H.75a.75.75 0 110-1.5h3.32a4.001 4.001 0 017.86 0h3.32a.75.75 0 110 1.5h-3.32z"/>`,
@@ -26,7 +28,9 @@ export function icon(name: IconName, color: string, size = 16): string {
   if (!path) return "";
   const meta = iconMeta[name];
   const viewBox = meta?.viewBox ?? "0 0 16 16";
-  const colorStr = color.startsWith("#") ? color : `#${color}`;
+  const colorStr = escapeXml(
+    /^(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(color) ? `#${color}` : color,
+  );
   const attrs =
     meta?.kind === "stroke"
       ? `fill="none" stroke="${colorStr}" stroke-width="${meta.strokeWidth ?? "1.8"}" stroke-linecap="round" stroke-linejoin="round"`

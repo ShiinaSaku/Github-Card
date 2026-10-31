@@ -10,9 +10,10 @@ export interface UserProfile {
 export interface UserStats {
   stars: number;
   repos: number;
-  prs: number;
-  issues: number;
-  commits: number;
+  /** null means unavailable, not zero (for example, organization activity totals). */
+  prs: number | null;
+  issues: number | null;
+  commits: number | null;
 }
 
 export interface LanguageStat {
@@ -37,5 +38,9 @@ export interface CardOptions {
   hide_border?: boolean;
   compact?: boolean;
   hide?: string[];
+  hide_langs?: string[];
+  show_langs?: string[];
   animate?: boolean;
+  /** Stable namespace for multiple cards embedded in the same SVG document. */
+  idPrefix?: string;
 }

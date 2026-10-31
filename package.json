@@ -68,11 +68,15 @@
     "@elysia/cors": "^1.4.2",
     "@elysia/openapi": "^1.4.15",
     "@elysia/server-timing": "^1.4.1",
+    "culori": "^4.0.2",
     "elysia": "1.4.30"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/cli": "^4.3.3",
-    "@types/bun": "^1.4.0",
+    "@types/bun": "^1.4.4",
+    "@types/culori": "^4.0.1",
+    "@xmldom/xmldom": "^0.9.12",
     "oxfmt": "0.74.0",
     "oxlint": "1.89.0",
     "tailwindcss": "^4.3.3",

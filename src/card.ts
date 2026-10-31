@@ -1,3 +1,4 @@
+import { parse, formatHex, formatHex8 } from "culori";
 import {
   resolveColors,
   kFormat,
@@ -8,22 +9,9 @@ import {
   FONT_FAMILY,
   resolveTw,
 } from "./utils/index";
-import type { UserProfile, UserStats, LanguageStat } from "./types";
+import type { UserProfile, UserStats, LanguageStat, CardOptions } from "./types";
 
-export type CardOpts = {
-  theme?: string;
-  title_color?: string;
-  text_color?: string;
-  icon_color?: string;
-  bg_color?: string;
-  border_color?: string;
-  hide_border?: boolean;
-  compact?: boolean;
-  hide?: string[];
-  hide_langs?: string[];
-  show_langs?: string[];
-  animate?: boolean;
-};
+export type CardOpts = CardOptions;
 
 const STAT_DEFS = [
   { key: "stars", iconName: "star" as const, label: "Stars" },
@@ -58,12 +46,27 @@ function el(
 /* ── helpers ───────────────────────────────────────────────── */
 
 function raw(token: string): string {
-  const m = resolveTw(token, "fill").match(/fill="([^"]+)"/);
-  return m?.[1] ?? token;
+  const value = resolveTw(token, "fill").match(/fill="([^"]+)"/)?.[1] ?? token;
+  const color = parse(value);
+  return color
+    ? color.alpha === undefined || color.alpha === 1
+      ? formatHex(color)
+      : formatHex8(color)
+    : "#6b7280";
 }
 
-function clamp(s: string, n: number): string {
-  return s.length <= n ? s : s.slice(0, n - 1).trimEnd() + "\u2026";
+function fitText(text: string, width: number, size: number, weight = 400): string {
+  if (measureText(text, size, weight) <= width) return text;
+  const chars = Array.from(text);
+  while (chars.length && measureText(chars.join("") + "…", size, weight) > width) chars.pop();
+  return chars.join("").trimEnd() + "…";
+}
+
+// Stable output keeps ETags useful; the gallery supplies a distinct prefix per theme.
+function cardId(value: string): string {
+  let hash = 2166136261;
+  for (const char of value) hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619);
+  return `card-${(hash >>> 0).toString(36)}`;
 }
 
 function buildLanguageSegments(
@@ -88,7 +91,7 @@ function buildLanguageSegments(
     visible.push({ name: "Other", color: "#6b7280", size: tinySize });
   }
 
-  return visible.length > 0 ? visible : langs;
+  return visible;
 }
 
 /* ── renderer ──────────────────────────────────────────────── */
@@ -99,7 +102,9 @@ export function renderCard(
   langs: LanguageStat[],
   opts: CardOpts = {},
 ): string {
-  const hidden = new Set((opts.hide ?? []).map((k) => k.toLowerCase()));
+  const namespace = cardId(JSON.stringify([user, stats, langs, opts]));
+  const selector = `#${namespace}-root`;
+  const hidden = new Set((opts.hide ?? []).map((k) => k.trim().toLowerCase()));
   const c = resolveColors(opts);
   const compact = opts.compact ?? false;
   const animate = opts.animate ?? false;
@@ -113,21 +118,17 @@ export function renderCard(
   const iconColor = raw(c.icon);
   const borderColor = raw(c.border);
 
-  const fontFamily = FONT_FAMILY;
-
   /* ── profile text ─────────────────────────────────────────── */
-  const displayName = user.name || user.login;
-  const nameEsc = escapeXml(clamp(displayName, 28));
-  const loginEsc = escapeXml(clamp(user.login, 24));
-  const pronouns = !compact && user.pronouns ? escapeXml(clamp(user.pronouns, 16)) : "";
+  const displayName = user.name?.trim() || user.login;
+  const pronouns = !compact && user.pronouns ? user.pronouns : "";
   const bioRaw = !compact && user.bio ? user.bio : "";
-  const bioLines = bioRaw ? wrapText(bioRaw, 44, 2) : [];
-  const twitter = !compact && user.twitter ? escapeXml(clamp(user.twitter, 22)) : "";
+  const twitterRaw = !compact && user.twitter ? user.twitter.replace(/^@/, "") : "";
   const avatar = user.avatarUrl || "";
-  const metaStr = pronouns ? `@${loginEsc} \u00b7 ${pronouns}` : `@${loginEsc}`;
+  const metaRaw = `@${user.login}${pronouns ? ` · ${pronouns}` : ""}`;
 
   const visible = STAT_DEFS.filter((d) => !hidden.has(d.key));
   const activeLangsList = langs.filter((l) => {
+    if (!Number.isFinite(l.size) || l.size <= 0) return false;
     const name = l.name.toLowerCase().trim();
     if (showLangs.size > 0 && !showLangs.has(name)) return false;
     if (hideLangs.has(name)) return false;
@@ -142,17 +143,18 @@ export function renderCard(
   const textGap = 16;
 
   const nameW = measureText(displayName, 17, 700);
-  const metaW = measureText(metaStr, 12.5, 500);
-  const bioW = bioLines.length ? Math.max(...bioLines.map((l) => measureText(l, 11.5, 400))) : 0;
-  const twitterW = twitter ? measureText(`@${twitter}`, 11.5, 500) : 0;
-  const profileTextW = Math.max(nameW, metaW, bioW, twitterW);
-
-  const profileW = PX + avatarSize + textGap + profileTextW + PX;
+  const metaW = measureText(metaRaw, 12.5, 500);
+  const profileW = PX + avatarSize + textGap + Math.max(nameW, metaW) + PX;
   const statsW = visible.length > 0 ? visible.length * 84 + PX * 2 : 0;
-  const langsW = activeLangsList.length > 0 ? 300 : 0;
-
-  const W = Math.round(Math.min(540, Math.max(340, profileW, statsW, langsW)));
+  const W = Math.round(Math.min(540, Math.max(340, profileW, statsW)));
   const contentW = W - PX * 2;
+  const profileTextW = contentW - avatarSize - textGap;
+  const nameEsc = escapeXml(fitText(displayName, profileTextW, 17, 700));
+  const metaStr = escapeXml(fitText(metaRaw, profileTextW, 12.5, 500));
+  const bioLines = wrapText(bioRaw, 44, 2).map((line) => fitText(line, profileTextW, 11.5));
+  const twitter = escapeXml(
+    fitText(twitterRaw ? `@${twitterRaw}` : "", profileTextW - 15, 11.5, 500),
+  );
 
   /* ── profile section ─────────────────────────────────────── */
   const infoX = PX + avatarSize + textGap;
@@ -174,38 +176,30 @@ export function renderCard(
   /* ── languages section ─────────────────────────────────── */
   const totalSize = activeLangsList.reduce((s, l) => s + l.size, 0) || 1;
   const sorted = [...activeLangsList].sort((a, b) => b.size - a.size);
-  const visualLangs = buildLanguageSegments(sorted, totalSize, contentW);
+  let visualLangs = buildLanguageSegments(sorted, totalSize, contentW);
+  // The legend and bar must describe the same groups and colors.
+  if (!compact && visualLangs.length > 6) {
+    const named = visualLangs.filter((lang) => lang.name !== "Other").slice(0, 5);
+    const otherSize = totalSize - named.reduce((sum, lang) => sum + lang.size, 0);
+    visualLangs = [...named, { name: "Other", color: "#6b7280", size: otherSize }];
+  }
   const barY = statsY + statsH + (statsH ? 18 : 14);
   const barH = 10;
-
-  const maxLegend = compact ? 0 : 6;
-  const legendLangs = visualLangs.slice(0, maxLegend);
-  const otherSize = visualLangs.slice(maxLegend).reduce((s, l) => s + l.size, 0);
-
   const legendY = barY + barH + 14;
   const legendRowH = 17;
-  const legendCols = 3;
+  const legendCols = Math.min(3, Math.max(1, Math.floor(contentW / 150)));
   const legendColW = contentW / legendCols;
-  const legendItems: { name: string; color: string; pct: string }[] = legendLangs.map((l) => ({
-    name: clamp(l.name, 14),
-    color: l.color,
-    pct: ((l.size / totalSize) * 100).toFixed(1),
-  }));
-  if (otherSize > 0 && legendItems.length > 0) {
-    const existingOther = legendItems.find((item) => item.name === "Other");
-    if (existingOther) {
-      existingOther.pct = (
-        (((Number(existingOther.pct) / 100) * totalSize + otherSize) / totalSize) *
-        100
-      ).toFixed(1);
-    } else {
-      legendItems.push({
-        name: "Other",
-        color: "#6b7280",
-        pct: ((otherSize / totalSize) * 100).toFixed(1),
+  const legendItems = compact
+    ? []
+    : visualLangs.map((lang) => {
+        const pct = ((lang.size / totalSize) * 100).toFixed(1);
+        const suffixW = measureText(` ${pct}%`, 11, 500);
+        return {
+          name: fitText(lang.name, legendColW - 20 - suffixW, 11, 500),
+          color: raw(lang.color),
+          pct,
+        };
       });
-    }
-  }
   const legendRows = compact ? 0 : Math.ceil(legendItems.length / legendCols);
 
   const hasLangs = activeLangsList.length > 0;
@@ -217,6 +211,7 @@ export function renderCard(
   /* ── accessibility ────────────────────────────────────────── */
   const parts: string[] = [];
   const svgAttrs: Record<string, string | number> = {
+    id: "root",
     width: W,
     height: H,
     viewBox: `0 0 ${W} ${H}`,
@@ -233,40 +228,51 @@ export function renderCard(
     el(
       "desc",
       { id: "cardDesc" },
-      `GitHub profile card for ${escapeXml(displayName)} with ${kFormat(stats.stars)} stars, ${kFormat(stats.commits)} commits, and ${activeLangsList.length} highlighted languages.`,
+      escapeXml(
+        `GitHub profile card for ${displayName}. ${visible
+          .map(({ key, label }) => {
+            const value = stats[key];
+            return value === null ? `${label}: unavailable` : `${label}: ${kFormat(value)}`;
+          })
+          .join(", ")}. ${activeLangsList.length} highlighted languages.`,
+      ),
     ),
   );
 
   /* ── styles ──────────────────────────────────────────────── */
   const css: string[] = [];
   css.push(
-    `* { font-family: ${fontFamily}; text-rendering: geometricPrecision; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }`,
+    `${selector} { font-family: ${FONT_FAMILY}; text-rendering: geometricPrecision; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }`,
   );
   css.push(
-    `.header { font-size: 17px; font-weight: 700; fill: ${titleColor}; letter-spacing: -0.015em; }`,
+    `${selector} .header { font-size: 17px; font-weight: 700; fill: ${titleColor}; letter-spacing: -0.015em; }`,
   );
-  css.push(`.stat { font-size: 14px; font-weight: 600; fill: ${textColor}; }`);
-  css.push(`.icon { fill: ${iconColor}; }`);
-  css.push(`.lang-name { font-size: 11px; fill: ${textColor}; opacity: 0.82; }`);
-  css.push(`.lang-progress { fill: ${textColor}; opacity: 0.07; }`);
-  css.push(`.meta { font-size: 12.5px; font-weight: 500; fill: ${textColor}; opacity: 0.72; }`);
-  css.push(`.bio { font-size: 11.5px; font-weight: 400; fill: ${textColor}; opacity: 0.68; }`);
+  css.push(`${selector} .lang-name { font-size: 11px; fill: ${textColor}; opacity: 0.82; }`);
+  css.push(`${selector} .lang-progress { fill: ${textColor}; opacity: 0.07; }`);
   css.push(
-    `.stat-label { font-size: 10px; font-weight: 700; fill: ${textColor}; opacity: 0.68; letter-spacing: 0.06em; }`,
+    `${selector} .meta { font-size: 12.5px; font-weight: 500; fill: ${textColor}; opacity: 0.72; }`,
   );
   css.push(
-    `.stat-value { font-size: 16px; font-weight: 700; fill: ${textColor}; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }`,
+    `${selector} .bio { font-size: 11.5px; font-weight: 400; fill: ${textColor}; opacity: 0.68; }`,
   );
   css.push(
-    `.twitter-text { font-size: 11.5px; font-weight: 500; fill: ${textColor}; opacity: 0.65; }`,
+    `${selector} .stat-label { font-size: 10px; font-weight: 700; fill: ${textColor}; opacity: 0.68; letter-spacing: 0.06em; }`,
+  );
+  css.push(
+    `${selector} .stat-value { font-size: 16px; font-weight: 700; fill: ${textColor}; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }`,
+  );
+  css.push(
+    `${selector} .twitter-text { font-size: 11.5px; font-weight: 500; fill: ${textColor}; opacity: 0.65; }`,
   );
 
   if (animate) {
-    css.push("@keyframes fadeInAnimation { from { opacity: 0; } to { opacity: 1; } }");
-    css.push(".stagger { opacity: 0; animation: fadeInAnimation 0.3s ease-in-out forwards; }");
+    css.push(`@keyframes ${namespace}-fade { from { opacity: 0; } to { opacity: 1; } }`);
+    css.push(
+      `${selector} .stagger { opacity: 0; animation: ${namespace}-fade 0.3s ease-in-out forwards; }`,
+    );
   }
 
-  parts.push(el("style", {}, css.join(" ")));
+  parts.push(el("style", {}, escapeXml(css.join(" "))));
 
   /* ── defs ────────────────────────────────────────────────── */
   parts.push(
@@ -398,8 +404,7 @@ export function renderCard(
       el(
         "g",
         { transform: `translate(${infoX},${twitterY - 9})` },
-        icon("x", textColor, 11) +
-          el("text", { x: 15, y: 9, class: "twitter-text" }, `@${twitter}`),
+        icon("x", textColor, 11) + el("text", { x: 15, y: 9, class: "twitter-text" }, twitter),
       ),
     );
   }
@@ -411,11 +416,9 @@ export function renderCard(
 
     for (let i = 0; i < visible.length; i++) {
       const d = visible[i]!;
-      const val = stats[d.key as keyof UserStats];
+      const val = stats[d.key];
       const cx = PX + statW * i + statW / 2;
       const iy = statsY + 4;
-
-      const staggerClass = animate ? " stagger" : "";
 
       // Vertical stack: icon → value → label, all centered, with airy gaps.
       const iconSize = 15;
@@ -423,16 +426,26 @@ export function renderCard(
       const valueY = 37;
       const labelY = 52;
 
-      const cellParts: string[] = [];
+      const cellParts: string[] = [
+        el(
+          "title",
+          {},
+          val === null ? `${d.label}: unavailable` : `${d.label}: ${val.toLocaleString("en-US")}`,
+        ),
+      ];
       cellParts.push(
         el(
           "g",
-          { transform: `translate(${-iconSize / 2},${iconY})`, class: "stat-icon" },
+          { transform: `translate(${-iconSize / 2},${iconY})` },
           icon(d.iconName, iconColor, iconSize),
         ),
       );
       cellParts.push(
-        el("text", { x: 0, y: valueY, class: "stat-value", "text-anchor": "middle" }, kFormat(val)),
+        el(
+          "text",
+          { x: 0, y: valueY, class: "stat-value", "text-anchor": "middle" },
+          val === null ? "—" : kFormat(val),
+        ),
       );
       cellParts.push(
         el(
@@ -447,7 +460,7 @@ export function renderCard(
           "g",
           {
             transform: `translate(${cx},${iy})`,
-            class: `stat${staggerClass}`,
+            class: animate ? "stagger" : undefined,
             style: animate ? `animation-delay: ${(i + 3) * 150}ms` : undefined,
           },
           cellParts.join(""),
@@ -524,7 +537,9 @@ export function renderCard(
       if (w < 0) w = 0;
       const x = PX + off;
       const tooltip = compact ? "" : el("title", {}, `${escapeXml(lang.name)} ${pct}%`);
-      barParts.push(el("rect", { x, y: barY, width: w, height: barH, fill: lang.color }, tooltip));
+      barParts.push(
+        el("rect", { x, y: barY, width: w, height: barH, fill: raw(lang.color) }, tooltip),
+      );
       off += w;
     }
     langParts.push(el("g", { "clip-path": "url(#lang-clip)" }, barParts.join("")));
@@ -557,5 +572,12 @@ export function renderCard(
   }
 
   parts.push("</svg>");
-  return parts.join("");
+  return parts
+    .join("")
+    .replace(/\bid="([^"]+)"/g, (_, id: string) => `id="${namespace}-${id}"`)
+    .replace(/="url\(#([^)]+)\)"/g, (_, id: string) => `="url(#${namespace}-${id})"`)
+    .replace(
+      'aria-labelledby="cardTitle cardDesc"',
+      `aria-labelledby="${namespace}-cardTitle ${namespace}-cardDesc"`,
+    );
 }

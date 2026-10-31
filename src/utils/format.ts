@@ -16,7 +16,7 @@ export function kFormat(num: number): string {
  */
 export function measureText(text: string, size: number, weight = 400): number {
   if (!text) return 0;
-  const factor = size / 16;
+  const factor = size;
   const weightFactor = weight >= 700 ? 1.08 : weight >= 600 ? 1.04 : 1;
   let width = 0;
   for (const ch of text) {
@@ -45,6 +45,7 @@ export function measureText(text: string, size: number, weight = 400): number {
 
 export function escapeXml(str: string): string {
   return str
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff\ud800-\udfff]/gu, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -53,28 +54,29 @@ export function escapeXml(str: string): string {
 }
 
 export function wrapText(input: string, maxLen: number, maxLines: number): string[] {
-  const words = input.split(/\s+/).filter(Boolean);
+  if (maxLen < 1 || maxLines < 1) return [];
+  let remaining = Array.from(input.trim().replace(/\s+/g, " "));
   const lines: string[] = [];
-  let current = "";
 
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length <= maxLen) {
-      current = next;
-      continue;
+  while (remaining.length && lines.length < maxLines) {
+    if (remaining.length <= maxLen) {
+      lines.push(remaining.join(""));
+      break;
     }
-    if (current) lines.push(current);
-    if (lines.length === maxLines) break;
-    current = word.length > maxLen ? word.slice(0, maxLen) : word;
-  }
-  if (current && lines.length < maxLines) lines.push(current);
-
-  // Truncated? Mark the last line with an ellipsis.
-  const consumed = lines.join(" ").length;
-  if (lines.length > 0 && consumed < input.trim().length) {
-    const last = lines[lines.length - 1]!;
-    lines[lines.length - 1] =
-      (last.length >= maxLen ? last.slice(0, Math.max(0, maxLen - 1)) : last) + "…";
+    if (lines.length === maxLines - 1) {
+      lines.push(
+        remaining
+          .slice(0, maxLen - 1)
+          .join("")
+          .trimEnd() + "…",
+      );
+      break;
+    }
+    const space = remaining.lastIndexOf(" ", maxLen);
+    const end = space > 0 ? space : maxLen;
+    lines.push(remaining.slice(0, end).join(""));
+    remaining = remaining.slice(end);
+    if (remaining[0] === " ") remaining.shift();
   }
   return lines;
 }
