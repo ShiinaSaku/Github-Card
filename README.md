@@ -10,7 +10,7 @@ Live SVG cards for your README — stars, commits, languages, all auto-updating.
 
 [![npm](https://img.shields.io/npm/v/@shiinasaku/github-card?style=flat-square&label=npm&color=000)](https://www.npmjs.com/package/@shiinasaku/github-card)
 [![Bun](https://img.shields.io/badge/Bun-1.x-f9f1e1?style=flat-square&logo=bun&logoColor=000)](https://bun.sh)
-[![Elysia](https://img.shields.io/badge/Elysia-1.x-7c3aed?style=flat-square)](https://elysiajs.com)
+[![Elysia](https://img.shields.io/badge/Elysia-2_RC-7c3aed?style=flat-square)](https://next.elysiajs.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=fff)](https://www.typescriptlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-34d399?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://img.shields.io/badge/Deploy-Vercel-000?style=flat-square&logo=vercel)](https://vercel.com/new/clone?repository-url=https://github.com/ShiinaSaku/Github-Card)
@@ -27,7 +27,7 @@ Live SVG cards for your README — stars, commits, languages, all auto-updating.
 
 ### ✨ What's new in 4.2
 
-> System-font only · no shipped `.woff2` · crisper text (`geometricPrecision`, tabular numbers) · new 24 px icons (MingCute / Huge / Tabler) · airy stat stack with 7 px gaps, no boxes · default `affiliations=owner` — org stars excluded unless `?affiliations=affiliated` · fully typed `github.ts` & `github-client`, cache v8.
+> System-font only · no shipped `.woff2` · crisper text (`geometricPrecision`, tabular numbers) · new 24 px icons (MingCute / Huge / Tabler) · airy stat stack with 7 px gaps, no boxes · default `affiliations=owner` — org stars excluded unless `?affiliations=affiliated` · fully typed `github.ts` & `github-client`, cache v9.
 
 ---
 
@@ -39,10 +39,12 @@ Paste into your profile README — replace `shiinasaku` with your username:
 [![GitHub Card](https://card.shiina.xyz/card/shiinasaku?theme=shiina)](https://github.com/shiinasaku)
 ```
 
-That's it. No sign-up, no build — the card refreshes on every push.
+That's it. No sign-up, no build — the card refreshes automatically as cached data expires.
 
 <details>
 <summary><b>Self-host / local dev</b></summary>
+
+Requires Bun 1.4.4 or newer. The API uses Elysia 2 RC with pinned framework and plugin versions.
 
 ```bash
 bun install
@@ -50,12 +52,19 @@ cp .env.example .env   # add GITHUB_TOKEN
 bun dev                # http://localhost:3000
 ```
 
-| Command             | Action                |
-| ------------------- | --------------------- |
-| `bun test`          | Run 51 tests          |
-| `bun run typecheck` | Strict `tsc --noEmit` |
-| `bun run lint`      | oxlint                |
-| `bun run fmt`       | oxfmt                 |
+| Command             | Action               |
+| ------------------- | -------------------- |
+| `bun test`          | Run tests            |
+| `bun run typecheck` | Native `bun check`   |
+| `bun run fmt`       | Bun native formatter |
+| `bun run fmt:check` | Check formatting     |
+
+Formatting uses Bun's built-in `bun fmt`; no separate formatter or linter is installed.
+Bun 1.4.4 does not provide a built-in `bun lint` command. `bun check` enforces strict typing and
+unused-symbol checks. TypeScript is retained only to emit the library’s `.d.ts` files during builds.
+
+`src/app.ts` composes the API without opening a port; `src/index.ts` exports the same app for
+Vercel and starts a listener only when run directly. The rendering library is unchanged.
 
 </details>
 
@@ -136,6 +145,24 @@ Add `?theme=tokyonight` or override any slot with hex or Tailwind tokens: `pink-
 | `affiliations` |  `string`  | `owner` (default) or `affiliated` — org stars excluded by default |
 | `fields`       | `string[]` | Fetch only `fields=stats` for speed                               |
 
+#### What the numbers mean
+
+- Stars, repositories, and languages come from non-fork repositories in the requested scope.
+  `affiliations=owner` is the default for both the HTTP API and `getProfileData`.
+- User commits are contributions credited by GitHub from January 1 (UTC) to now, not lifetime
+  commit counts. Default user PR/issue totals are lifetime authored totals. With `scope=org`,
+  commits, PRs, and issues are this year's contributions to the selected organizations.
+- `scope=all` combines personal and contributed organization repositories without counting a repo
+  twice; its activity totals remain the user's totals. `orgs` filters the organization portion.
+- Organization accounts have repository/star/language data, but no computed activity totals.
+  Those metrics display `—` (and are `null` in `UserStats`), not a misleading zero.
+- Language filters run before `lang_count`. Percentages describe the displayed languages by code
+  size, not time spent coding. The bar and legend use the same “Other” group.
+- Results depend on what the GitHub token can access. GitHub's query limits still apply:
+  the top 10 languages per repository and up to 100 repositories in each org contribution
+  breakdown. Repository pagination supports up to 10,000 repos per connection; reaching that
+  limit with more pages remaining returns an error rather than caching incomplete totals.
+
 #### Examples
 
 ```md
@@ -176,7 +203,7 @@ Add `?theme=tokyonight` or override any slot with hex or Tailwind tokens: `pink-
 
 3. Done — serves `/card/:username` on Vercel CDN `s-maxage=1800, stale-while-revalidate=1800`.
 
-> Without Redis, in-memory LRU (1000 entries, SWR 30 min) still keeps warm instances fast.
+> Without Redis, bounded in-memory cache (1000 entries, SWR 30 min) still keeps warm instances fast.
 
 ---
 
@@ -205,7 +232,7 @@ npm install @shiinasaku/github-card # Node / Next / Vite
 import { renderCard, themes } from "@shiinasaku/github-card";
 
 const svg = renderCard(user, stats, languages, { theme: "tokyonight" });
-// → string of SVG, zero deps, any runtime
+// → SVG string, no network or server required
 ```
 
 Prebuilt `dist/lib.js` + `.d.ts`; Bun resolves raw TS via `bun` export condition. Pure renderer — no network, no server.
@@ -221,7 +248,7 @@ flowchart LR
   C -- hit --> G[render SVG<br/>ETag/304 → CDN]
   C -- miss --> D{L2 Redis<br/>SWR 30m}
   D -- hit --> G
-  D -- miss --> E[GitHub GraphQL<br/>100/page, 5 pages, 6s timeout]
+  D -- miss --> E[GitHub GraphQL<br/>100/page, up to 100 pages, 6s/request]
   E --> F[typed fetch<br/>+ avatar 150px]
   F --> G
   G --> H[Pure SVG<br/>system fonts · measured layout · glass]
@@ -239,7 +266,7 @@ Fully automated:
 
 1. **Actions → Bump** → `patch` / `minor` / `major`.
 2. Workflow bumps `package.json`, commits, tags `vX.Y.Z`.
-3. Tag triggers **Release**: `oxfmt` · `oxlint` · `typecheck` · `tests` · `dist` build · tag↔version guard · `npm pack` verify → publish with [provenance](https://docs.npmjs.com/generating-provenance-statements) + GitHub Release.
+3. Tag triggers **Release**: `bun fmt --check` · `bun check` · `tests` · `dist` build · tag↔version guard · `npm pack` verify → publish with [provenance](https://docs.npmjs.com/generating-provenance-statements) + GitHub Release.
 
 ---
 
