@@ -1,9 +1,5 @@
 export class GitHubError extends Error {
-  constructor(
-    message: string,
-    public httpStatus?: number,
-    public errorCode?: string,
-  ) {
+  constructor(message: string) {
     super(message);
     this.name = "GitHubError";
   }
@@ -11,93 +7,48 @@ export class GitHubError extends Error {
 
 export class NotFoundError extends GitHubError {
   constructor(message = "Resource not found") {
-    super(message, 404, "NOT_FOUND");
+    super(message);
     this.name = "NotFoundError";
   }
 }
 
 export class RateLimitError extends GitHubError {
-  constructor(
-    message = "GitHub API rate limit exceeded",
-    public resetAt?: Date,
-  ) {
-    super(message, 429, "RATE_LIMITED");
+  constructor(message = "GitHub API rate limit exceeded") {
+    super(message);
     this.name = "RateLimitError";
   }
 }
 
 export class AuthError extends GitHubError {
   constructor(message = "GitHub authentication failed") {
-    super(message, 401, "UNAUTHENTICATED");
+    super(message);
     this.name = "AuthError";
   }
 }
 
-export class TimeoutError extends GitHubError {
-  constructor(message = "GitHub API request timed out") {
-    super(message, 408, "TIMEOUT");
+class TimeoutError extends GitHubError {
+  constructor() {
+    super("GitHub API request timed out");
     this.name = "TimeoutError";
   }
 }
 
-export interface GitHubClientOptions {
-  token?: string;
-  userAgent?: string;
-  timeoutMs?: number;
-  baseUrl?: string;
-}
-
-export interface RequestOptions extends Omit<RequestInit, "body"> {
-  variables?: Record<string, unknown>;
-  timeoutMs?: number;
-}
-
-/**
- * A next-generation, generic GitHub GraphQL client.
- * Designed to be robust, strongly typed, and publishable.
- */
 export class GitHubClient {
-  private readonly token: string;
-  private readonly userAgent: string;
-  private readonly timeoutMs: number;
-  private readonly baseUrl: string;
+  constructor(private readonly options: { token: string; userAgent: string }) {}
 
-  constructor(options: GitHubClientOptions = {}) {
-    const token =
-      options.token || (typeof process !== "undefined" ? process.env?.GITHUB_TOKEN : "") || "";
-    if (!token) {
-      console.warn(
-        "GitHubClient initialized without a token. Requests requiring authentication will fail.",
-      );
-    }
-
-    this.token = token;
-    this.userAgent = options.userAgent || "nextgen-github-client/1.0";
-    this.timeoutMs = options.timeoutMs || 10000;
-    this.baseUrl = options.baseUrl || "https://api.github.com/graphql";
-  }
-
-  /**
-   * Classifies fetch or API errors into distinct custom error classes.
-   */
-  private classifyError(message: string, status: number, headers?: Headers): never {
+  private classifyError(message: string, status: number): never {
     const lower = message.toLowerCase();
-
     if (status === 404 || lower.includes("not resolve to a user") || lower.includes("not found")) {
       throw new NotFoundError(message);
     }
-
     if (
       status === 429 ||
       status === 403 ||
       lower.includes("rate limit") ||
       lower.includes("abuse")
     ) {
-      const resetHeader = headers?.get("x-ratelimit-reset");
-      const resetAt = resetHeader ? new Date(parseInt(resetHeader, 10) * 1000) : undefined;
-      throw new RateLimitError(message, resetAt);
+      throw new RateLimitError(message);
     }
-
     if (
       status === 401 ||
       lower.includes("bad credentials") ||
@@ -105,94 +56,48 @@ export class GitHubClient {
     ) {
       throw new AuthError(message);
     }
-
-    throw new GitHubError(message || `GitHub API error (${status})`, status);
+    throw new GitHubError(message || `GitHub API error (${status})`);
   }
 
-  /**
-   * Executes a GraphQL query against the GitHub API.
-   *
-   * @param query The GraphQL query string.
-   * @param options Request options including variables and fetch options.
-   * @returns Strongly typed response data.
-   */
-  public async request<T = unknown>(query: string, options: RequestOptions = {}): Promise<T> {
-    const { variables, timeoutMs = this.timeoutMs, signal: userSignal, ...fetchOptions } = options;
-
-    const headers = new Headers(fetchOptions.headers);
-    if (this.token && !headers.has("Authorization")) {
-      headers.set("Authorization", `bearer ${this.token}`);
-    }
-    if (!headers.has("Content-Type")) {
-      headers.set("Content-Type", "application/json");
-    }
-    if (!headers.has("User-Agent")) {
-      headers.set("User-Agent", this.userAgent);
-    }
-
-    const abortController = new AbortController();
-    const timeoutId =
-      timeoutMs > 0
-        ? setTimeout(() => abortController.abort(new TimeoutError()), timeoutMs)
-        : undefined;
-
-    // Link user-provided signal if present
-    const onAbort = userSignal ? () => abortController.abort(userSignal.reason) : undefined;
-    if (userSignal) {
-      userSignal.addEventListener("abort", onAbort!);
-      if (userSignal.aborted) abortController.abort(userSignal.reason);
-    }
-
-    let response: Response;
-
+  async request<T>(
+    query: string,
+    { variables, timeoutMs }: { variables: Record<string, unknown>; timeoutMs: number },
+  ): Promise<T> {
     try {
-      response = await fetch(this.baseUrl, {
-        ...fetchOptions,
+      const response = await fetch("https://api.github.com/graphql", {
         method: "POST",
-        headers,
+        headers: {
+          Authorization: `bearer ${this.options.token}`,
+          "Content-Type": "application/json",
+          "User-Agent": this.options.userAgent,
+        },
         body: JSON.stringify({ query, variables }),
-        signal: abortController.signal,
+        signal: AbortSignal.timeout(timeoutMs),
       });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      const name = error instanceof Error ? error.name : "";
-      if (name === "AbortError" || error instanceof TimeoutError) {
-        throw new TimeoutError(message || "Request timed out");
+      if (!response.ok) {
+        const message = await response.text();
+        this.classifyError(message || response.statusText, response.status);
       }
-      throw new GitHubError(`Network error: ${message || "Unknown error"}`);
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (userSignal) {
-        userSignal.removeEventListener("abort", onAbort!);
+
+      const body = (await response.json()) as { data?: T; errors?: { message: string }[] };
+      if (body.errors?.length) {
+        this.classifyError(body.errors[0]?.message || "GraphQL error", response.status);
       }
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      this.classifyError(errorText || response.statusText, response.status, response.headers);
-    }
-
-    const body = (await response.json().catch(() => ({}))) as {
-      data?: T;
-      errors?: { message: string }[];
-    };
-
-    if (body.errors && body.errors.length > 0) {
-      const firstError = body.errors[0];
-      const message = firstError?.message ?? "GraphQL error";
-      this.classifyError(message, response.status, response.headers);
-    }
-
-    if (!body.data) {
+      if (body.data == null) {
+        throw new GitHubError("Invalid response: No data returned from GraphQL endpoint");
+      }
+      return body.data;
+    } catch (error) {
+      if (error instanceof GitHubError) throw error;
+      if (
+        error instanceof Error &&
+        (error.name === "AbortError" || error.name === "TimeoutError")
+      ) {
+        throw new TimeoutError();
+      }
       throw new GitHubError(
-        "Invalid response: No data returned from GraphQL endpoint",
-        response.status,
+        `Network error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-
-    return body.data as T;
   }
 }
-
-// Export a default singleton instance for convenience
-export const githubClient = new GitHubClient();
