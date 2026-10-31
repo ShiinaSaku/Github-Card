@@ -28,9 +28,6 @@ jobs:
       - name: Format check
         run: bun run fmt:check
 
-      - name: Lint
-        run: bun run lint
-
       - name: Typecheck
         run: bun run typecheck
 

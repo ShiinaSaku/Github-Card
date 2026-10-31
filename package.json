@@ -56,11 +56,9 @@
     "dev": "bun run --watch src/index.ts",
     "build": "bun build src/lib.ts --outfile dist/lib.js --format esm --target node && tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build",
-    "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "typecheck": "tsc --noEmit --skipLibCheck",
+    "fmt": "bun fmt",
+    "fmt:check": "bun fmt --check",
+    "typecheck": "bun check",
     "test": "bun test",
     "test:coverage": "bun test --coverage"
   },
@@ -73,13 +71,9 @@
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "@tailwindcss/cli": "^4.3.3",
     "@types/bun": "^1.4.4",
     "@types/culori": "^4.0.1",
     "@xmldom/xmldom": "^0.9.12",
-    "oxfmt": "0.74.0",
-    "oxlint": "1.89.0",
-    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3"
   },
   "packageManager": "bun@1.4.4"

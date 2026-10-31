@@ -1,6 +1,5 @@
-export { resolveColors, themes, type Theme } from "./themes";
+export { resolveColors, themes } from "./themes";
 export { kFormat, escapeXml, wrapText, measureText } from "./format";
-export { getLangColor } from "./languages";
-export { icons, icon } from "./icons";
-export { FONT_FACE, FONT_FAMILY } from "./font";
-export * from "./colors";
+export { icon } from "./icons";
+export { FONT_FAMILY } from "./font";
+export { resolveTw } from "./colors";

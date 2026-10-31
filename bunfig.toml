@@ -1,0 +1,4 @@
+[fmt]
+# Keep the existing style when using Bun's native formatter.
+printWidth = 100
+ignorePatterns = [".agents/**", "skills-lock.json"]
