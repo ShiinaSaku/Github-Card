@@ -1,5 +1,51 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import app from "../src/index";
+import { app } from "../src/app";
+import { version } from "../package.json";
+
+const mockGitHubFetch = (async (input: Request | string | URL) => {
+  const url = input.toString();
+  if (url.includes("api.github.com/graphql")) {
+    return new Response(
+      JSON.stringify({
+        data: {
+          user: {
+            login: "octocat",
+            name: "The Octocat",
+            avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
+            bio: "Hello",
+            pronouns: "they/them",
+            twitterUsername: "octo",
+            openPRs: { totalCount: 1 },
+            closedPRs: { totalCount: 2 },
+            mergedPRs: { totalCount: 3 },
+            openIssues: { totalCount: 1 },
+            closedIssues: { totalCount: 4 },
+            contributionsCollection: { totalCommitContributions: 10 },
+            repositories: {
+              totalCount: 2,
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [
+                {
+                  nameWithOwner: "octocat/hello-world",
+                  stargazers: { totalCount: 5 },
+                  languages: {
+                    edges: [{ size: 100, node: { color: "#3178c6", name: "TypeScript" } }],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  return new Response(new Uint8Array([1, 2, 3]), {
+    status: 200,
+    headers: { "Content-Type": "image/png" },
+  });
+}) as typeof fetch;
 
 let originalFetch: typeof globalThis.fetch | undefined;
 let originalToken: string | undefined;
@@ -8,6 +54,7 @@ beforeEach(() => {
   originalFetch = globalThis.fetch;
   originalToken = Bun.env.GITHUB_TOKEN;
   Bun.env.GITHUB_TOKEN = "test";
+  globalThis.fetch = mockGitHubFetch;
 });
 
 afterEach(() => {
@@ -38,50 +85,6 @@ describe("index routes", () => {
   });
 
   it("serves user themes SVG", async () => {
-    globalThis.fetch = (async (input: Request | string | URL) => {
-      const url = input.toString();
-      if (url.includes("api.github.com/graphql")) {
-        return new Response(
-          JSON.stringify({
-            data: {
-              user: {
-                login: "octocat",
-                name: "The Octocat",
-                avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
-                bio: "Hello",
-                pronouns: "they/them",
-                twitterUsername: "octo",
-                openPRs: { totalCount: 1 },
-                closedPRs: { totalCount: 2 },
-                mergedPRs: { totalCount: 3 },
-                openIssues: { totalCount: 1 },
-                closedIssues: { totalCount: 4 },
-                contributionsCollection: { totalCommitContributions: 10 },
-                repositories: {
-                  totalCount: 2,
-                  pageInfo: { hasNextPage: false, endCursor: null },
-                  nodes: [
-                    {
-                      stargazers: { totalCount: 5 },
-                      languages: {
-                        edges: [{ size: 100, node: { color: "#3178c6", name: "TypeScript" } }],
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-
-      return new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: { "Content-Type": "image/png" },
-      });
-    }) as unknown as typeof fetch;
-
     const res = await app.handle(new Request("http://localhost/octocat/themes"));
     const body = await res.text();
 
@@ -108,50 +111,6 @@ describe("index routes", () => {
   });
 
   it("returns 200 and CORS header for card endpoint", async () => {
-    globalThis.fetch = (async (input: Request | string | URL) => {
-      const url = input.toString();
-      if (url.includes("api.github.com/graphql")) {
-        return new Response(
-          JSON.stringify({
-            data: {
-              user: {
-                login: "octocat",
-                name: "The Octocat",
-                avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
-                bio: "Hello",
-                pronouns: "they/them",
-                twitterUsername: "octo",
-                openPRs: { totalCount: 1 },
-                closedPRs: { totalCount: 2 },
-                mergedPRs: { totalCount: 3 },
-                openIssues: { totalCount: 1 },
-                closedIssues: { totalCount: 4 },
-                contributionsCollection: { totalCommitContributions: 10 },
-                repositories: {
-                  totalCount: 2,
-                  pageInfo: { hasNextPage: false, endCursor: null },
-                  nodes: [
-                    {
-                      stargazers: { totalCount: 5 },
-                      languages: {
-                        edges: [{ size: 100, node: { color: "#3178c6", name: "TypeScript" } }],
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-
-      return new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: { "Content-Type": "image/png" },
-      });
-    }) as unknown as typeof fetch;
-
     const res = await app.handle(new Request("http://localhost/card/octocat"));
 
     expect(res.status).toBe(200);
@@ -256,50 +215,6 @@ describe("index routes", () => {
   });
 
   it("supports ETag conditional requests", async () => {
-    globalThis.fetch = (async (input: Request | string | URL) => {
-      const url = input.toString();
-      if (url.includes("api.github.com/graphql")) {
-        return new Response(
-          JSON.stringify({
-            data: {
-              user: {
-                login: "octocat",
-                name: "The Octocat",
-                avatarUrl: "https://avatars.githubusercontent.com/u/1?v=4",
-                bio: "Hello",
-                pronouns: "they/them",
-                twitterUsername: "octo",
-                openPRs: { totalCount: 1 },
-                closedPRs: { totalCount: 2 },
-                mergedPRs: { totalCount: 3 },
-                openIssues: { totalCount: 1 },
-                closedIssues: { totalCount: 4 },
-                contributionsCollection: { totalCommitContributions: 10 },
-                repositories: {
-                  totalCount: 2,
-                  pageInfo: { hasNextPage: false, endCursor: null },
-                  nodes: [
-                    {
-                      stargazers: { totalCount: 5 },
-                      languages: {
-                        edges: [{ size: 100, node: { color: "#3178c6", name: "TypeScript" } }],
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }
-
-      return new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: { "Content-Type": "image/png" },
-      });
-    }) as unknown as typeof fetch;
-
     const first = await app.handle(new Request("http://localhost/card/octocat"));
     const etag = first.headers.get("etag");
 
@@ -314,14 +229,27 @@ describe("index routes", () => {
 
     expect(second.status).toBe(304);
     expect(second.headers.get("etag")).toBe(etag);
+    expect(await second.text()).toBe("");
+    for (const header of ["cache-control", "cdn-cache-control", "vercel-cdn-cache-control"]) {
+      expect(second.headers.get(header)).toBe(first.headers.get(header));
+    }
+    expect(second.headers.get("access-control-allow-origin")).toBe("*");
   });
 
   it("serves OpenAPI JSON documentation", async () => {
     const res = await app.handle(new Request("http://localhost/openapi/json"));
     expect(res.status).toBe(200);
 
-    const spec = (await res.json()) as { openapi: string };
+    const spec = (await res.json()) as {
+      openapi: string;
+      info: { version: string };
+      paths: Record<string, { get: { parameters: { name: string }[] } }>;
+    };
     expect(spec.openapi.startsWith("3.")).toBe(true);
+    expect(spec.info.version).toBe(version);
+    expect(spec.paths["/card/{username}"]?.get.parameters.map(({ name }) => name)).toContain(
+      "lang_count",
+    );
   });
 
   it("handles CORS preflight requests", async () => {
@@ -337,5 +265,56 @@ describe("index routes", () => {
 
     expect([200, 204]).toContain(res.status);
     expect(res.headers.get("access-control-allow-origin")).toBe("https://example.com");
+  });
+  for (const route of ["/card/octocat", "/octocat/themes"]) {
+    it(`coerces boolean, integer, and list queries on ${route}`, async () => {
+      const response = await app.handle(
+        `${route}?compact=true&animate=false&hide_border=true&lang_count=2&hide=stars,issues&hide=prs&show_langs=typescript,rust&orgs=elysiajs,vercel`,
+      );
+      const svg = await response.text();
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("image/svg+xml");
+      expect(svg).not.toContain(">STARS<");
+      expect(svg).not.toContain(">ISSUES<");
+      expect(svg).not.toContain(">PRS<");
+    });
+
+    for (const query of [
+      "compact=maybe",
+      "animate=maybe",
+      "lang_count=0",
+      "lang_count=11",
+      "lang_count=1.5",
+      "scope=invalid",
+      "affiliations=invalid",
+    ]) {
+      it(`rejects ${query} on ${route} before fetching`, async () => {
+        let fetched = false;
+        globalThis.fetch = (() => {
+          fetched = true;
+          throw new Error("Invalid requests must not fetch GitHub");
+        }) as unknown as typeof fetch;
+        expect((await app.handle(`${route}?${query}`)).status).toBe(422);
+        expect(fetched).toBe(false);
+      });
+    }
+  }
+
+  for (const upstreamStatus of [404, 429, 502]) {
+    it(`maps GitHub ${upstreamStatus} errors and keeps CORS headers`, async () => {
+      globalThis.fetch = (async () =>
+        new Response("GitHub unavailable", { status: upstreamStatus })) as unknown as typeof fetch;
+      const response = await app.handle(`/card/error-${upstreamStatus}`);
+      expect(response.status).toBe(upstreamStatus);
+      expect(await response.json()).toEqual({ error: "GitHub unavailable" });
+      expect(response.headers.get("access-control-allow-origin")).toBe("*");
+      expect(response.headers.get("cache-control")).toBeNull();
+    });
+  }
+
+  it("keeps the server entrypoint compatible without starting a listener on import", async () => {
+    const { default: entrypoint } = await import("../src/index");
+    expect(entrypoint).toBe(app);
+    expect((await entrypoint.handle("/meta")).status).toBe(200);
   });
 });
