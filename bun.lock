@@ -6,7 +6,7 @@
       "name": "@shiinasaku/github-card",
       "dependencies": {
         "@elysia/cors": "2.0.0-rc.0",
-        "@elysia/openapi": "2.0.0-rc.0",
+        "@elysia/openapi": "2.0.0-rc.1",
         "@elysia/server-timing": "2.0.0-rc.0",
         "culori": "^4.0.2",
         "elysia": "2.0.0-rc.1",
@@ -23,7 +23,7 @@
   "packages": {
     "@elysia/cors": ["@elysia/cors@2.0.0-rc.0", "", { "peerDependencies": { "elysia": ">= 2.0.0-rc.0" } }, "sha512-mlkOv7lHhT3HCCIIwawZBYXzQ6Ok1B//IQvIKaNww0o9xE2JLH6S74xVFZfobsH12eOVKWQVITr9iM/7Z/Zcdw=="],
 
-    "@elysia/openapi": ["@elysia/openapi@2.0.0-rc.0", "", { "peerDependencies": { "elysia": ">= 2.0.0-rc.0" } }, "sha512-IkRdigbDxqZpQzZ9Dg/HpJT2S4SUdRboVZ5umT0uYrUffJTRnb11seetF/gt96xqxbrWSZSlG8pxKtuabJ6NGg=="],
+    "@elysia/openapi": ["@elysia/openapi@2.0.0-rc.1", "", { "peerDependencies": { "elysia": ">= 2.0.0-rc.0" } }, "sha512-XzNbSVkgxrsTxK3tq+IUXV84FvmM7dO2uDJ9xS55JJQalKbXOM4TgNAg3Um/pBML5UApIXKh8IZmWXK5WdHitQ=="],
 
     "@elysia/server-timing": ["@elysia/server-timing@2.0.0-rc.0", "", { "peerDependencies": { "elysia": ">= 2.0.0-rc.0" } }, "sha512-OIitDmEG5iLvRJr5xnsxpOtyu6nipkF71jCSn57ZPsBP0vfVEvv6bsBx6zjKrmQ/kq3lC9U5BkQK97+rEwJN6g=="],
 
