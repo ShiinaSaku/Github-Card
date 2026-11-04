@@ -63,8 +63,8 @@ Formatting uses Bun's built-in `bun fmt`; no separate formatter or linter is ins
 Bun 1.4.4 does not provide a built-in `bun lint` command. `bun check` enforces strict typing and
 unused-symbol checks. TypeScript is retained only to emit the library’s `.d.ts` files during builds.
 
-`src/app.ts` composes the API without opening a port; `src/index.ts` exports the same app for
-Vercel and starts a listener only when run directly. The rendering library is unchanged.
+`src/index.ts` serves as the entrypoint for Vercel and local development, starting a listener
+only when run directly. The rendering library is unchanged.
 
 </details>
 

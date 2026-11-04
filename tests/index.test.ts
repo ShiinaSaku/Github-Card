@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { app } from "../src/app";
+import { app } from "../src/index";
 import { version } from "../package.json";
 
 const mockGitHubFetch = (async (input: Request | string | URL) => {
