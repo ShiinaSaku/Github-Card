@@ -63,11 +63,11 @@
     "test:coverage": "bun test --coverage"
   },
   "dependencies": {
-    "@elysia/cors": "2.0.0-rc.0",
+    "@elysia/cors": "2.0.0-rc.1",
     "@elysia/openapi": "2.0.0-rc.1",
     "@elysia/server-timing": "2.0.0-rc.0",
     "culori": "^4.0.2",
-    "elysia": "2.0.0-rc.1"
+    "elysia": "2.0.0-rc.3"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
