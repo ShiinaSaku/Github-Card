@@ -67,7 +67,7 @@
     "@elysia/openapi": "2.0.0-rc.1",
     "@elysia/server-timing": "2.0.0-rc.0",
     "culori": "^4.0.2",
-    "elysia": "2.0.0-rc.3"
+    "elysia": "2.0.0-rc.4"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
