@@ -76,5 +76,5 @@
     "@xmldom/xmldom": "^0.9.12",
     "typescript": "^6.0.3"
   },
-  "packageManager": "bun@1.4.4"
+  "packageManager": "bun@1.4.5"
 }
