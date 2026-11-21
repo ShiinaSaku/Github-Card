@@ -6,16 +6,16 @@
  */
 
 // Core renderer
-export { renderCard, type CardOpts } from "./card";
+export { renderCard, type CardOpts } from "./card.js";
 
 // Types
-export type { UserProfile, UserStats, LanguageStat, ProfileData, CardOptions } from "./types";
+export type { UserProfile, UserStats, LanguageStat, ProfileData, CardOptions } from "./types.js";
 
 // Theming
-export { themes, resolveColors, type Theme } from "./utils/themes";
+export { themes, resolveColors, type Theme } from "./utils/themes.js";
 
 // Utilities
-export { kFormat, escapeXml, wrapText, measureText } from "./utils/format";
-export { icons, icon } from "./utils/icons";
-export { getLangColor } from "./utils/languages";
-export { FONT_FACE, FONT_FAMILY } from "./utils/font";
+export { kFormat, escapeXml, wrapText, measureText } from "./utils/format.js";
+export { icons, icon } from "./utils/icons.js";
+export { getLangColor } from "./utils/languages.js";
+export { FONT_FACE, FONT_FAMILY } from "./utils/font.js";

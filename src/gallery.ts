@@ -1,6 +1,6 @@
-import { renderCard, type CardOpts } from "./card";
-import type { LanguageStat, UserProfile, UserStats } from "./types";
-import { escapeXml, themes } from "./utils";
+import { renderCard, type CardOpts } from "./card.js";
+import type { LanguageStat, UserProfile, UserStats } from "./types.js";
+import { escapeXml, themes } from "./utils/index.js";
 
 /** Inline SVG cards so the preview also works through GitHub's image proxy. */
 export function renderThemeGallery(

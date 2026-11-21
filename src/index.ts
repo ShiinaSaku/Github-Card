@@ -10,10 +10,10 @@ import {
   NotFoundError,
   RateLimitError,
   UpstreamError,
-} from "./github";
-import { renderCard, type CardOpts } from "./card";
-import { themes } from "./utils";
-import { renderThemeGallery } from "./gallery";
+} from "./github.js";
+import { renderCard, type CardOpts } from "./card.js";
+import { themes } from "./utils/index.js";
+import { renderThemeGallery } from "./gallery.js";
 import { version } from "../package.json";
 
 const USERNAME_PATTERN = "^[a-zA-Z0-9-]{1,39}$";

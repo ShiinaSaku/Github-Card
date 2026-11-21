@@ -1,7 +1,8 @@
 name: Bump
 
 # One-click release: Actions → Bump → pick level.
-# Commits "chore(release): vX.Y.Z" + tag vX.Y.Z to main, which triggers Release.
+# Commits "chore(release): vX.Y.Z" + tag vX.Y.Z to main, then dispatches Release.
+# The dispatch is required because tag pushes made with GITHUB_TOKEN do not trigger workflows.
 on:
   workflow_dispatch:
     inputs:
@@ -18,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   bump:
@@ -43,3 +45,6 @@ jobs:
           git commit -m "chore(release): v${VERSION}"
           git tag -a "v${VERSION}" -m "v${VERSION}"
           git push origin HEAD:main --follow-tags
+          gh workflow run release.yml --ref main -f version="${VERSION}"
+        env:
+          GH_TOKEN: ${{ github.token }}

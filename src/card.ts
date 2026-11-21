@@ -8,8 +8,8 @@ import {
   measureText,
   FONT_FAMILY,
   resolveTw,
-} from "./utils/index";
-import type { UserProfile, UserStats, LanguageStat, CardOptions } from "./types";
+} from "./utils/index.js";
+import type { UserProfile, UserStats, LanguageStat, CardOptions } from "./types.js";
 
 export type CardOpts = CardOptions;
 

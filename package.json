@@ -15,6 +15,9 @@
     "svg"
   ],
   "homepage": "https://card.shiina.xyz",
+  "bugs": {
+    "url": "https://github.com/ShiinaSaku/Github-Card/issues"
+  },
   "license": "MIT",
   "author": {
     "name": "saku shiina",
@@ -25,36 +28,40 @@
     "type": "git",
     "url": "git+https://github.com/ShiinaSaku/Github-Card.git"
   },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/lib.mjs",
+  "types": "./dist/lib.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib.d.mts",
+      "bun": "./src/lib.ts",
+      "import": "./dist/lib.mjs",
+      "default": "./dist/lib.mjs"
+    },
+    "./server": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
     "src",
     "README.md",
     "LICENSE"
   ],
-  "type": "module",
-  "main": "./dist/lib.js",
-  "module": "./dist/lib.js",
-  "types": "./dist/lib.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/lib.d.ts",
-      "bun": "./src/lib.ts",
-      "import": "./dist/lib.js",
-      "default": "./dist/lib.js"
-    },
-    "./server": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
-    },
-    "./package.json": "./package.json"
+  "engines": {
+    "node": ">=20.19.0"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/lib.ts --outfile dist/lib.js --format esm --target node && tsc -p tsconfig.build.json",
+    "dev": "tsdown --watch",
+    "dev:server": "bun run --watch src/index.ts",
+    "build": "tsdown",
     "prepublishOnly": "bun run build",
     "fmt": "bun fmt",
     "fmt:check": "bun fmt --check",
@@ -63,17 +70,18 @@
     "test:coverage": "bun test --coverage"
   },
   "dependencies": {
-    "@elysia/cors": "2.0.0-rc.1",
-    "@elysia/openapi": "2.0.0-rc.1",
-    "@elysia/server-timing": "2.0.0-rc.0",
+    "@elysia/cors": "^2.0.0-rc.1",
+    "@elysia/openapi": "^2.0.0-rc.1",
+    "@elysia/server-timing": "^2.0.0-rc.0",
     "culori": "^4.0.2",
-    "elysia": "2.0.0-rc.4"
+    "elysia": "^2.0.0-rc.4"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "@types/bun": "^1.4.4",
+    "@types/bun": "^1.4.5",
     "@types/culori": "^4.0.1",
     "@xmldom/xmldom": "^0.9.12",
+    "tsdown": "^0.23.7",
     "typescript": "^6.0.3"
   },
   "packageManager": "bun@1.4.5"

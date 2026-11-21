@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -13,40 +13,19 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: test
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
-      - name: Install
-        run: bun install --frozen-lockfile
-
-      - name: Format check
-        run: bun run fmt:check
-
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Test
-        run: bun test
-
-      - name: Build dist
-        run: bun run build
-
-      - name: Summary
-        if: always()
-        run: |
-          {
-            echo "## CI Results"
-            echo ""
-            echo "- Overall: ${{ job.status }}"
-            echo "- Workflow: CI"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - run: bun install --frozen-lockfile
+      - run: bun run fmt:check
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build

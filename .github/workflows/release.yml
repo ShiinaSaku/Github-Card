@@ -1,88 +1,83 @@
 name: Release
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stage (for example 5.1.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
   id-token: write
 
 jobs:
-  ci:
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-
-      - name: Install
-        run: bun install --frozen-lockfile
-
-      - name: Format check
-        run: bun run fmt:check
-
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Test
-        run: bun test
-
-      - name: Build dist
-        run: bun run build
-
-  publish:
-    needs: ci
+  release:
     runs-on: ubuntu-latest
     environment: npm
-    permissions:
-      contents: write
-      id-token: write
     steps:
-      - name: Checkout
+      - name: Validate version and checkout tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Invalid version '$VERSION'. Expected a semantic version without a leading 'v'."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "DIST_TAG=$(if printf '%s' "$VERSION" | grep -q -- '-'; then echo next; else echo latest; fi)" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+
+      - name: Checkout release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: v${{ inputs.version }}
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "26"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
-      - name: Install
+      - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Verify tag matches package version
+      - name: Verify version
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG="$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag '$GITHUB_REF_NAME' does not match package.json version '$PKG'"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Tag version '$VERSION' does not match package.json version '$PACKAGE_VERSION'."
             exit 1
           fi
 
-      - name: Build dist
-        run: bun run build
+      - name: Check and build
+        env:
+          GITHUB_TOKEN: test
+        run: |
+          bun run fmt:check
+          bun run typecheck
+          bun test
+          bun run build
 
       - name: Verify package contents
         run: npm pack --dry-run
 
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+      - name: Stage package on npm for maintainer approval
+        run: |
+          npm install --global npm@^11.15.0
+          npm stage publish --provenance --access public --tag "$DIST_TAG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
         with:
+          tag_name: v${{ inputs.version }}
+          prerelease: ${{ contains(inputs.version, '-') }}
           generate_release_notes: true
-          files: |
-            dist/**
+          files: dist/**

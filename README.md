@@ -8,11 +8,11 @@ Live SVG cards for your README — stars, commits, languages, all auto-updating.
 
 <br/>
 
-[![npm](https://img.shields.io/npm/v/@shiinasaku/github-card?style=flat-square&label=npm&color=000)](https://www.npmjs.com/package/@shiinasaku/github-card)
+[![npm version](https://npmx.dev/api/registry/badge/version/@shiinasaku/github-card?style=compact)](https://npmx.dev/package/@shiinasaku/github-card)
+[![npm downloads](https://npmx.dev/api/registry/badge/downloads-month/@shiinasaku/github-card?style=compact)](https://npmx.dev/package/@shiinasaku/github-card)
+[![License](https://npmx.dev/api/registry/badge/license/@shiinasaku/github-card?style=compact)](https://npmx.dev/package/@shiinasaku/github-card)
+[![TypeScript types](https://npmx.dev/api/registry/badge/types/@shiinasaku/github-card?style=compact)](https://npmx.dev/package/@shiinasaku/github-card)
 [![Bun](https://img.shields.io/badge/Bun-1.x-f9f1e1?style=flat-square&logo=bun&logoColor=000)](https://bun.sh)
-[![Elysia](https://img.shields.io/badge/Elysia-2_RC-7c3aed?style=flat-square)](https://next.elysiajs.com)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=fff)](https://www.typescriptlang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-34d399?style=flat-square)](LICENSE)
 [![Deploy with Vercel](https://img.shields.io/badge/Deploy-Vercel-000?style=flat-square&logo=vercel)](https://vercel.com/new/clone?repository-url=https://github.com/ShiinaSaku/Github-Card)
 
 <a href="https://card.shiina.xyz/card/shiinasaku?theme=shiina">
@@ -44,24 +44,27 @@ That's it. No sign-up, no build — the card refreshes automatically as cached d
 <details>
 <summary><b>Self-host / local dev</b></summary>
 
-Requires Bun 1.4.4 or newer. The API uses Elysia 2 RC with pinned framework and plugin versions.
+Requires Bun 1.4.4 or newer. Add a GitHub token to `.env` for local API requests; the renderer library itself does not need a token. tsdown builds require Node.js 22.18+ (build time only); the package output targets Node.js 20.19+.
 
 ```bash
 bun install
 cp .env.example .env   # add GITHUB_TOKEN
-bun dev                # http://localhost:3000
+bun run dev:server     # http://localhost:3000
 ```
 
-| Command             | Action               |
-| ------------------- | -------------------- |
-| `bun test`          | Run tests            |
-| `bun run typecheck` | Native `bun check`   |
-| `bun run fmt`       | Bun native formatter |
-| `bun run fmt:check` | Check formatting     |
+| Command             | Action                  |
+| ------------------- | ----------------------- |
+| `bun run dev`       | tsdown watch build      |
+| `bun run build`     | tsdown production build |
+| `bun test`          | Run tests               |
+| `bun run typecheck` | Native `bun check`      |
+| `bun run fmt`       | Bun native formatter    |
+| `bun run fmt:check` | Check formatting        |
 
 Formatting uses Bun's built-in `bun fmt`; no separate formatter or linter is installed.
 Bun 1.4.4 does not provide a built-in `bun lint` command. `bun check` enforces strict typing and
 unused-symbol checks. TypeScript is retained only to emit the library’s `.d.ts` files during builds.
+The library bundle and `.d.ts` declarations are produced by tsdown from `src/lib.ts` into `dist/`. `bun run dev:server` runs the API locally; `bun run dev` watches the library build.
 
 `src/index.ts` serves as the entrypoint for Vercel and local development, starting a listener
 only when run directly. The rendering library is unchanged.
@@ -262,11 +265,12 @@ flowchart LR
 
 ## Releasing
 
-Fully automated:
+Automated through staging; the npm publish needs one maintainer approval:
 
-1. **Actions → Bump** → `patch` / `minor` / `major`.
-2. Workflow bumps `package.json`, commits, tags `vX.Y.Z`.
-3. Tag triggers **Release**: `bun fmt --check` · `bun check` · `tests` · `dist` build · tag↔version guard · `npm pack` verify → publish with [provenance](https://docs.npmjs.com/generating-provenance-statements) + GitHub Release.
+1. **Actions → Bump** → `patch` / `minor` / `major` / `prerelease`.
+2. Workflow bumps `package.json`, commits, tags `vX.Y.Z`, then dispatches **Release**.
+3. **Release** verifies the tag/version, runs formatting, typecheck, tests, build, and `npm pack --dry-run`, then stages the package on npm with [provenance](https://docs.npmjs.com/generating-provenance-statements) and creates the GitHub Release.
+4. Approve the staged package on npmjs.com (or `npm stage approve <id>`) to make it installable.
 
 ---
 

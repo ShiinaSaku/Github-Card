@@ -1,4 +1,4 @@
-import type { ProfileData } from "./types";
+import type { ProfileData } from "./types.js";
 import { RedisClient } from "bun";
 import {
   GitHubClient,
@@ -6,7 +6,7 @@ import {
   RateLimitError,
   AuthError,
   GitHubError as UpstreamError,
-} from "./utils/github-client";
+} from "./utils/github-client.js";
 
 export { NotFoundError, RateLimitError, AuthError, UpstreamError };
 
